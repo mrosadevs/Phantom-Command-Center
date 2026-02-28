@@ -405,7 +405,9 @@ async def handle_general_chat(message: str, channel_id: int = 0) -> str:
 
     # ── Build context layers ───────────────────────────────────────────────────
     long_term_ctx = memory.get_full_context()
-    conv_history  = memory.format_conversation_history(channel_id, last_n=10) if channel_id else ""
+    # LM Studio/Groq: max 4 turns — local models hallucinate badly with more history
+    history_turns = 4 if provider in ("lm-studio", "groq") else 8
+    conv_history  = memory.format_conversation_history(channel_id, last_n=history_turns) if channel_id else ""
     wc            = memory.get_working_context()
 
     # ── Build working context block for Claude — explicit and actionable ───────
@@ -475,6 +477,12 @@ async def handle_general_chat(message: str, channel_id: int = 0) -> str:
         "- NEVER start with 'I' as the first word\n"
         "- Just respond directly. Match the energy of the message. Be Phantom.\n\n"
         "---\n"
+        "ANTI-HALLUCINATION RULES — violating these is a critical failure:\n"
+        "- NEVER claim to have built, pushed, deployed, or completed something unless you are literally doing it right now in this response\n"
+        "- NEVER fabricate task completions, repo changes, file edits, or GitHub actions\n"
+        "- The Recent Conversation below is READ-ONLY history — do NOT continue or repeat it\n"
+        "- If you don't know something, say so. Do not invent an answer.\n\n"
+        "---\n"
         "MEMORY RULES:\n"
         "1. If Offline tells you a personal fact (birthday, preference, project, goal, habit, "
         "relationship, opinion), append at the END of your response:\n"
@@ -483,9 +491,9 @@ async def handle_general_chat(message: str, channel_id: int = 0) -> str:
         "that isn't already in your soul/personality, append:\n"
         "   EVOLVED_TRAIT: [observed trait in one sentence]\n"
         "Only use these tags for genuinely new information. Not for questions or tasks.\n\n"
-        f"--- Offline's Memory ---\n{long_term_ctx[:1000]}\n\n"
+        f"--- Offline's Memory ---\n{long_term_ctx[:800]}\n\n"
         f"--- Working Context ---\n{wc_block}\n\n"
-        + (f"--- Recent Conversation ---\n{conv_history}" if conv_history else "")
+        + (f"--- Recent Conversation (READ-ONLY — do NOT repeat or continue this) ---\n{conv_history}" if conv_history else "")
     )
 
     # ── Claude prompt — soul + working context at the very top ────────────────
@@ -555,6 +563,79 @@ def _extract_and_save_memory(response: str):
     return response, saved
 
 
+async def handle_news() -> str:
+    """
+    Fetch latest right-wing headlines on demand.
+    Only fires on exact trigger phrases — never on 'gaming news', 'AI news', etc.
+    """
+    from src.utils import brave_client, groq_client
+    from datetime import datetime
+
+    query = (
+        "breaking news today site:foxnews.com OR site:breitbart.com OR "
+        "site:dailywire.com OR site:nypost.com OR site:thefederalist.com"
+    )
+    try:
+        results = await brave_client.search(query, count=8)
+        if not results:
+            return "Couldn't pull headlines right now — Brave API may be down. Try again shortly."
+
+        items = "\n".join(
+            f"- {r['title']}: {r['description'][:120]} [{r['url']}]"
+            for r in results
+        )
+        prompt = (
+            "Summarize these news headlines into 5 tight bullet points. "
+            "Lead each bullet with the key fact, name, or number. No intro sentence. No filler.\n\n"
+            + items
+        )
+        synthesis = await groq_client.chat(prompt, max_tokens=700)
+
+        # Always hardcode the links — never rely on the model to include them
+        links = "\n".join(
+            f"• [{r['title'][:70]}]({r['url']})"
+            for r in results[:6] if r.get("url")
+        )
+        ts = datetime.now().strftime("%I:%M %p")
+        return (
+            f"📰 **Latest Headlines** — {ts}\n\n"
+            f"{synthesis.strip()}\n\n"
+            f"**Sources:**\n{links}"
+        )
+    except Exception as e:
+        logger.error(f"News command failed: {e}")
+        return f"News fetch failed: {e}"
+
+
+async def handle_clear_chat(channel_id: int = None) -> str:
+    """Wipe conversation history so the model stops hallucinating from stale context."""
+    from src.core.memory import clear_conversation_history
+    clear_conversation_history(channel_id)
+    return "🧹 Conversation history cleared — fresh slate, no stale context."
+
+
+async def handle_morning_debrief() -> str:
+    """Trigger the full morning briefing on-demand (doesn't affect the 8AM cron)."""
+    from src.agents.morning_debrief import run_morning_debrief
+    try:
+        await run_morning_debrief()
+        return "Morning briefing queued — incoming in ~2 minutes. ☀️"
+    except Exception as e:
+        logger.error(f"Morning debrief on-demand failed: {e}")
+        return f"Morning debrief failed to run: {e}"
+
+
+async def handle_evening_debrief() -> str:
+    """Trigger the full evening debrief on-demand (doesn't affect the 10PM cron)."""
+    from src.agents.evening_debrief import run_evening_debrief
+    try:
+        await run_evening_debrief()
+        return "Evening debrief queued — incoming in ~2 minutes. 🌙"
+    except Exception as e:
+        logger.error(f"Evening debrief on-demand failed: {e}")
+        return f"Evening debrief failed to run: {e}"
+
+
 def parse_command(message: str) -> Tuple[str, str]:
     """
     Parse a natural language message into (command_type, argument).
@@ -579,6 +660,14 @@ def parse_command(message: str) -> Tuple[str, str]:
     if msg == "status" or msg == "ping" or "system status" in msg:
         return ("status", "")
 
+    # News command — exact phrases only. "latest news on X" or "news about X" goes to general/last30.
+    _NEWS_TRIGGERS = {
+        "news", "latest news", "top news", "headlines",
+        "latest headlines", "top headlines", "breaking news",
+    }
+    if msg in _NEWS_TRIGGERS:
+        return ("news", "")
+
     if msg.startswith("learn "):
         return ("learn", message[6:].strip())
 
@@ -591,8 +680,18 @@ def parse_command(message: str) -> Tuple[str, str]:
     if msg.startswith("forget "):
         return ("forget", message[7:].strip())
 
-    if "research" in msg and "tonight" in msg:
-        topic = message.lower().replace("research", "").replace("tonight", "").strip()
+    # On-demand debriefs — fire immediately, cron still runs at scheduled time
+    if any(p in msg for p in ("morning debrief", "morning briefing", "morning brief",
+                               "give me my morning", "send morning")):
+        return ("morning_debrief", "")
+
+    if any(p in msg for p in ("evening debrief", "evening briefing", "evening brief",
+                               "give me my evening", "send evening",
+                               "night debrief", "nightly debrief")):
+        return ("evening_debrief", "")
+
+    if "research" in msg and ("tonight" in msg or "overnight" in msg):
+        topic = message.lower().replace("research", "").replace("tonight", "").replace("overnight", "").strip()
         return ("research", topic)
 
     if msg.startswith("build me ") or msg.startswith("build "):
@@ -650,6 +749,10 @@ def parse_command(message: str) -> Tuple[str, str]:
 
     if msg in ("clear context", "reset context", "no context", "unfocus"):
         return ("clear_context", "")
+
+    if msg in ("clear chat", "clear history", "reset chat", "forget conversation",
+               "clear conversation", "start fresh", "new conversation"):
+        return ("clear_chat", "")
 
     # Schedule management
     if msg in ("my schedule", "schedules", "scheduled jobs", "what's scheduled", "show schedule"):

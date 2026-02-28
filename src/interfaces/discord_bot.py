@@ -33,6 +33,8 @@ from src.interfaces.discord_commands import (
     handle_use_model, handle_which_model,
     handle_work_on, handle_show_context, handle_clear_context,
     handle_show_schedule, handle_cancel_schedule,
+    handle_morning_debrief, handle_evening_debrief,
+    handle_clear_chat, handle_news,
 )
 
 logging.basicConfig(
@@ -113,10 +115,51 @@ async def on_message(message: discord.Message):
         return
 
     content = message.content.strip()
+    channel_id = message.channel.id
+
+    # ── Image attachment handling ──────────────────────────────────────────────
+    _IMAGE_EXTS = ('.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp')
+    image_attachments = [
+        a for a in message.attachments
+        if any(a.filename.lower().endswith(ext) for ext in _IMAGE_EXTS)
+    ]
+
+    if image_attachments:
+        question = content or "What do you see in this image? Describe it in detail."
+        logger.info(f"Image from {message.author}: {image_attachments[0].url[:80]} | q: {question[:60]}")
+        mem_module.add_conversation_turn(channel_id, "user", f"[image] {question}")
+        async with message.channel.typing():
+            try:
+                from src.utils.groq_client import analyze_image
+                # Analyze first (or all) image using Discord CDN URL directly
+                analysis = await analyze_image(image_attachments[0].url, question)
+
+                response_text = analysis
+                # If user wants research based on the image, queue it
+                if any(w in question.lower() for w in ("research", "look into", "find out about",
+                                                        "who is", "what is this", "investigate")):
+                    topic = content if content else analysis[:120]
+                    mem_module.append_backlog(
+                        title=f"Image research: {topic[:60]}",
+                        why="User sent image for research",
+                        effort="S"
+                    )
+                    response_text += "\n\n_Queued for tonight's research run too._"
+
+                response_text += "\n\n*groq vision • llama-3.2-11b*"
+                mem_module.add_conversation_turn(channel_id, "assistant", analysis[:400])
+            except Exception as e:
+                logger.error(f"Vision error: {e}", exc_info=True)
+                response_text = f"Couldn't analyze the image: `{e}`"
+
+        for chunk in _chunk_message(response_text):
+            await message.channel.send(chunk)
+        return
+
+    # ── Text-only path ─────────────────────────────────────────────────────────
     if not content:
         return
 
-    channel_id = message.channel.id
     logger.info(f"Message from {message.author} [ch:{channel_id}]: {content[:80]}")
 
     # ── Record user turn in conversation history ──────────────────────────────
@@ -217,6 +260,10 @@ async def dispatch_command(message: str, channel_id: int = 0) -> tuple:
         text = await handle_schedule(task, time_str)
         return text, None
 
+    elif command == "news":
+        text = await handle_news()
+        return text, None
+
     elif command == "work_on":
         text = await handle_work_on(arg)
         return text, None
@@ -235,6 +282,18 @@ async def dispatch_command(message: str, channel_id: int = 0) -> tuple:
 
     elif command == "cancel_schedule":
         text = await handle_cancel_schedule(arg)
+        return text, None
+
+    elif command == "morning_debrief":
+        text = await handle_morning_debrief()
+        return text, None
+
+    elif command == "evening_debrief":
+        text = await handle_evening_debrief()
+        return text, None
+
+    elif command == "clear_chat":
+        text = await handle_clear_chat(channel_id)
         return text, None
 
     else:

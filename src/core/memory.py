@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 # ── In-memory conversation history (per Discord channel_id) ──────────────────
 # Cleared on bot restart — intentional (fresh sessions, no stale context)
 _conversation_history: Dict[int, List[Dict]] = {}
-MAX_HISTORY_TURNS = 20   # keep last 20 messages (10 exchanges)
+MAX_HISTORY_TURNS = 8    # keep last 8 messages (4 exchanges) — local models hallucinate with more
 
 
 def read_memory(filename: str) -> str:
@@ -168,7 +168,7 @@ def add_conversation_turn(channel_id: int, role: str, content: str):
         _conversation_history[channel_id] = []
     _conversation_history[channel_id].append({
         "role": role,
-        "content": content[:1500],   # cap per-turn to avoid bloat
+        "content": content[:400],    # cap per-turn — prevents hallucinated responses from polluting future context
         "ts": datetime.now().isoformat(),
     })
     # Trim to window
@@ -179,6 +179,19 @@ def add_conversation_turn(channel_id: int, role: str, content: str):
 def get_conversation_history(channel_id: int, last_n: int = 12) -> List[Dict]:
     """Return the last N turns for a channel."""
     return _conversation_history.get(channel_id, [])[-last_n:]
+
+
+def clear_conversation_history(channel_id: int = None):
+    """
+    Clear conversation history.
+    If channel_id is None, clears ALL channels.
+    Call this when the model starts hallucinating from stale context.
+    """
+    global _conversation_history
+    if channel_id is None:
+        _conversation_history = {}
+    else:
+        _conversation_history[channel_id] = []
 
 
 def format_conversation_history(channel_id: int, last_n: int = 10) -> str:

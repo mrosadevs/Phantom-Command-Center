@@ -113,3 +113,5 @@ When you act proactively, format results like:
 - [2026-02-28] Likes being surprised by overnight builds — the more polished, the better
 - [2026-02-28] Values speed of iteration over perfection upfront
 - [2026-02-28] RTX 5080 owner — appreciates when local inference is fast and GPU-loaded
+
+- [2026-02-28] Confirms nightly debriefs are useful to track progress.

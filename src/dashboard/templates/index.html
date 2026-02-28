@@ -605,6 +605,39 @@
           </div>
         </div>
 
+        <!-- Vision / Images -->
+        <div class="guide-card" data-guide-card>
+          <div class="guide-card-header">
+            <span class="guide-card-icon">👁️</span>
+            <div><div class="guide-card-title">Image Analysis</div><div class="guide-card-desc">Send any image — Theodore analyzes it via Groq Vision (free)</div></div>
+          </div>
+          <div class="cmd-list">
+            <div class="cmd-row" onclick="copyCmd('')"><div class="cmd-chip">[send image, no caption]</div><div class="cmd-desc">General description — "what do you see?"</div></div>
+            <div class="cmd-row" onclick="copyCmd('what is this?')"><div class="cmd-chip">[image] + what is this?</div><div class="cmd-desc">Identify an object, person, place, or thing</div></div>
+            <div class="cmd-row" onclick="copyCmd('confirm this')"><div class="cmd-chip">[image] + confirm this</div><div class="cmd-desc">Ask Theodore to verify what's shown</div></div>
+            <div class="cmd-row" onclick="copyCmd('research this')"><div class="cmd-chip">[image] + research this</div><div class="cmd-desc">Analyze image AND queue a research task based on what it finds</div></div>
+            <div class="cmd-row" onclick="copyCmd('who is this?')"><div class="cmd-chip">[image] + who is this?</div><div class="cmd-desc">Identify a person — also queues research</div></div>
+            <div class="cmd-row" onclick="copyCmd('what does this say?')"><div class="cmd-chip">[image] + what does this say?</div><div class="cmd-desc">Read text in a screenshot or photo</div></div>
+          </div>
+          <div class="guide-tip">💡 Just <strong>attach the image</strong> to your Discord DM like normal. Your caption becomes the question. Supports JPG, PNG, GIF, WebP. Uses <strong>Groq Vision (free)</strong>.</div>
+        </div>
+
+        <!-- News -->
+        <div class="guide-card" data-guide-card>
+          <div class="guide-card-header">
+            <span class="guide-card-icon">📰</span>
+            <div><div class="guide-card-title">Latest News</div><div class="guide-card-desc">Right-wing headlines on demand — exact phrases only</div></div>
+          </div>
+          <div class="cmd-list">
+            <div class="cmd-row" onclick="copyCmd('news')"><div class="cmd-chip">news</div><div class="cmd-desc">Exact — pull headlines now</div></div>
+            <div class="cmd-row" onclick="copyCmd('latest news')"><div class="cmd-chip">latest news</div><div class="cmd-desc">Exact — same</div></div>
+            <div class="cmd-row" onclick="copyCmd('headlines')"><div class="cmd-chip">headlines</div><div class="cmd-desc">Exact — same</div></div>
+            <div class="cmd-row" onclick="copyCmd('breaking news')"><div class="cmd-chip">breaking news</div><div class="cmd-desc">Exact — same</div></div>
+            <div class="cmd-row" onclick="copyCmd('top headlines')"><div class="cmd-chip">top headlines</div><div class="cmd-desc">Exact — same</div></div>
+          </div>
+          <div class="guide-tip">⚠️ <strong>These exact phrases only.</strong> "latest news on gaming" or "news about Cuba" does <em>not</em> trigger this — those go to <strong>last30</strong> for a deep brief. Morning debrief includes headlines automatically at 8AM.</div>
+        </div>
+
         <!-- Research -->
         <div class="guide-card" data-guide-card>
           <div class="guide-card-header">
@@ -673,12 +706,15 @@
           <div class="cmd-list">
             <div class="cmd-row" onclick="copyCmd('status')"><div class="cmd-chip">status</div><div class="cmd-desc">System health — all services + current model</div></div>
             <div class="cmd-row" onclick="copyCmd('ping')"><div class="cmd-chip">ping</div><div class="cmd-desc">Same as status</div></div>
+            <div class="cmd-row" onclick="copyCmd('clear chat')"><div class="cmd-chip">clear chat</div><div class="cmd-desc">🧹 Nuke conversation history — use when Theodore starts hallucinating or going off the rails</div></div>
+            <div class="cmd-row" onclick="copyCmd('clear context')"><div class="cmd-chip">clear context</div><div class="cmd-desc">Remove the active working repo focus (stop targeting a specific repo)</div></div>
             <div class="cmd-row" onclick="copyCmd('install brave search')"><div class="cmd-chip">install [mcp name]</div><div class="cmd-desc">Install an MCP server via skill manager</div></div>
             <div class="cmd-row" onclick="copyCmd('learn https://github.com/user/skill')"><div class="cmd-chip">learn [url]</div><div class="cmd-desc">Install a skill from GitHub or ClawHub URL</div></div>
             <div class="cmd-row" onclick="copyCmd('schedule remind me to check backups at 9am every day')"><div class="cmd-chip">schedule [task] at [time]</div><div class="cmd-desc">Add a recurring DM reminder — persists across restarts</div></div>
             <div class="cmd-row" onclick="copyCmd('my schedule')"><div class="cmd-chip">my schedule</div><div class="cmd-desc">List all your custom scheduled jobs</div></div>
             <div class="cmd-row" onclick="copyCmd('cancel schedule backups')"><div class="cmd-chip">cancel schedule [name]</div><div class="cmd-desc">Remove a recurring scheduled job by name</div></div>
           </div>
+          <div class="guide-tip">⚠️ If Theodore starts making things up or looping — say <strong>clear chat</strong> immediately. It wipes the conversation history so the model gets a clean slate.</div>
         </div>
 
         <!-- Debrief Commands -->
@@ -688,13 +724,15 @@
             <div><div class="guide-card-title">Daily Debriefs</div><div class="guide-card-desc">Auto-delivered by Theodore — also fireable on demand</div></div>
           </div>
           <div class="cmd-list">
-            <div class="cmd-row" onclick="copyCmd('give me my morning debrief')"><div class="cmd-chip">morning debrief</div><div class="cmd-desc">Fire the 8AM briefing now: news, weather, overnight summary, skill suggestions</div></div>
-            <div class="cmd-row" onclick="copyCmd('give me my evening debrief')"><div class="cmd-chip">evening debrief</div><div class="cmd-desc">Fire the 10PM wrap-up now: day recap, repo ideas, overnight plan</div></div>
+            <div class="cmd-row" onclick="copyCmd('morning debrief')"><div class="cmd-chip">morning debrief</div><div class="cmd-desc">Fire the full 8AM briefing NOW — cron still fires at 8AM as normal</div></div>
+            <div class="cmd-row" onclick="copyCmd('give me my morning debrief')"><div class="cmd-chip">give me my morning debrief</div><div class="cmd-desc">Same — natural phrasing works too</div></div>
+            <div class="cmd-row" onclick="copyCmd('evening debrief')"><div class="cmd-chip">evening debrief</div><div class="cmd-desc">Fire the full 10PM wrap-up NOW — cron still fires at 10PM as normal</div></div>
+            <div class="cmd-row" onclick="copyCmd('give me my evening debrief')"><div class="cmd-chip">give me my evening debrief</div><div class="cmd-desc">Same — natural phrasing works too</div></div>
             <div class="cmd-row" onclick="copyCmd('research overnight Claude MCP servers')"><div class="cmd-chip">research overnight [topic]</div><div class="cmd-desc">Queue a topic for tonight's 11PM research run</div></div>
             <div class="cmd-row" onclick="copyCmd('what did you build?')"><div class="cmd-chip">what did you build?</div><div class="cmd-desc">Show the latest overnight build summary</div></div>
             <div class="cmd-row" onclick="copyCmd('what did you research?')"><div class="cmd-chip">what did you research?</div><div class="cmd-desc">Show the latest overnight research results</div></div>
           </div>
-          <div class="guide-tip">💡 Theodore delivers these automatically at <strong>8 AM</strong> and <strong>10 PM</strong> via Discord DM. You can also trigger them anytime by asking.</div>
+          <div class="guide-tip">💡 Auto-delivered at <strong>8 AM</strong> (morning) and <strong>10 PM</strong> (evening) via DM. Saying <strong>morning debrief</strong> or <strong>evening debrief</strong> at any time fires it immediately — the scheduled run is <em>not</em> affected.</div>
         </div>
 
         <!-- Cron Schedule -->
@@ -721,7 +759,7 @@
               <div><div class="cron-name">🔬 Nightly Research</div><div class="cron-desc">Runs queued research topics from the day, writes to research-log.md</div></div>
             </div>
             <div class="cron-row" style="border-bottom:none">
-              <div class="cron-time">2 AM</div>
+              <div class="cron-time">3 AM</div>
               <div><div class="cron-name">✨ Overnight Build</div><div class="cron-desc">Autonomously picks something from backlog or invents a new tool and builds it — shown in Surprises tab</div></div>
             </div>
           </div>
@@ -744,7 +782,7 @@
               <tr><td><span class="model-alias">gemini</span></td><td><span class="model-name">gemini-2.5-pro</span></td><td>Gemini CLI (Pro sub)</td><td>Web search, research, real-time info, scaffolding</td><td style="color:var(--green)">Pro sub</td></tr>
             </tbody>
           </table>
-          <div class="guide-tip" style="margin-top:14px">💡 <strong>Auto-routing</strong>: Simple chat → LM Studio. Code/build/github keywords → Claude. Vision/speech → Groq. "search the web" / weather / news → Gemini. Manual override wins above all.</div>
+          <div class="guide-tip" style="margin-top:14px">💡 <strong>Auto-routing</strong>: Simple chat → LM Studio (free). Code/build/GitHub → Claude (Max). Images → Groq Vision (free). "search the web" / weather / real-time lookup → Gemini. "news" / "headlines" (exact) → dedicated news command (Brave + Groq). "last30 [topic]" → multi-source deep brief (Claude or Groq). Manual model override wins above all.</div>
         </div>
 
         <!-- Tips -->
@@ -1013,7 +1051,7 @@ async function loadSurprises() {
   try {
     const { surprises } = await fetch(API + '/surprises').then(r => r.json());
     document.getElementById('surprises-count').textContent = surprises.length + ' built';
-    if (!surprises.length) { list.innerHTML = '<div class="empty-state"><span class="icon">✨</span>No surprises yet — check back after 2 AM!</div>'; return; }
+    if (!surprises.length) { list.innerHTML = '<div class="empty-state"><span class="icon">✨</span>No surprises yet — check back after 3 AM!</div>'; return; }
     list.innerHTML = surprises.map(s => `
       <div class="surprise-card">
         <div class="surprise-icon">✨</div>

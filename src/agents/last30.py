@@ -71,12 +71,10 @@ No generic advice. Directly tied to the findings above.
 - Web results: {web_count}
 - Date range: last 30 days
 
-## Sources
-List 6-8 of the most relevant URLs. Prefer HN threads and community posts over press releases.
-
 ---
 Rules: Only report what's in the sources. Cite r/subreddits and HN threads by name, not just URLs.
-No hallucinations. If a claim isn't in the sources, don't include it."""
+No hallucinations. If a claim isn't in the sources, don't include it.
+DO NOT include a Sources section — links are appended automatically."""
 
 
 async def _search_hn(topic: str, count: int = 8) -> List[Dict]:
@@ -184,7 +182,7 @@ async def _synthesize(prompt: str) -> str:
 
     # ── 3. Groq fallback ──────────────────────────────────────────────────────
     try:
-        result = await groq_client.chat(prompt, max_tokens=1500)
+        result = await groq_client.chat(prompt, max_tokens=1800)
         logger.info("last30: synthesized with Groq (fallback)")
         return result
     except Exception as e:
@@ -319,7 +317,17 @@ async def research_last30(topic: str) -> str:
         f"# last30: {topic}\n"
         f"*{ts} • {len(web_capped)} web + {len(hn_capped)} HN sources*\n\n"
     )
-    return header + synthesis
+
+    # Always append sources directly from raw results — never rely on model to include them
+    source_lines = []
+    for r in (web_capped + hn_capped)[:8]:
+        url = r.get("url", "")
+        title = r.get("title", url)[:75]
+        if url:
+            source_lines.append(f"• [{title}]({url})")
+    sources_block = ("\n\n**Sources:**\n" + "\n".join(source_lines)) if source_lines else ""
+
+    return header + synthesis + sources_block
 
 
 def _format_hn_results(results: List[Dict]) -> str:

@@ -45,8 +45,8 @@
     {
       "name": "nightly_build",
       "script": "scripts/nightly_build.py",
-      "cron": "0 2 * * *",
-      "description": "Proactively build tools/apps for Offline — 2AM EST",
+      "cron": "0 3 * * *",
+      "description": "Proactively build tools/apps for Offline — 3AM EST",
       "enabled": true
     }
   ]

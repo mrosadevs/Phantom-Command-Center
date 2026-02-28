@@ -32,3 +32,8 @@
 - Installed: 2026-02-28
 - Source: https://clawhub.ai/halthelobster/proactive-agent
 - Capabilities: See skill file for details
+
+## Weather
+- Installed: 2026-02-28
+- Source: https://clawhub.ai/steipete/weather
+- Capabilities: See skill file for details
