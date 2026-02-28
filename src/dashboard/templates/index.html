@@ -240,6 +240,48 @@
     .route-task { flex: 1; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .route-reason { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
 
+    /* ── Guide Page ── */
+    .guide-search { width: 100%; background: var(--bg3); border: 1px solid var(--border); color: var(--text); padding: 10px 16px 10px 38px; border-radius: 10px; font-size: 14px; outline: none; transition: border-color 0.2s, box-shadow 0.2s; margin-bottom: 20px; }
+    .guide-search:focus { border-color: var(--purple-light); box-shadow: 0 0 0 3px var(--purple-glow); }
+    .guide-search-wrap { position: relative; }
+    .guide-search-wrap::before { content: '🔍'; position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-size: 14px; pointer-events: none; margin-bottom: 20px; }
+    .guide-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+    .guide-card { background: rgba(15,15,21,0.8); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; backdrop-filter: blur(10px); transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s; }
+    .guide-card:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(168,85,247,0.15); border-color: rgba(168,85,247,0.3); }
+    .guide-card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+    .guide-card-icon { font-size: 20px; }
+    .guide-card-title { font-size: 13px; font-weight: 700; color: var(--text); letter-spacing: 0.5px; }
+    .guide-card-desc { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+    .cmd-list { display: flex; flex-direction: column; gap: 6px; }
+    .cmd-row { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; padding: 5px 7px; border-radius: 7px; transition: background 0.15s; }
+    .cmd-row:hover { background: rgba(168,85,247,0.08); }
+    .cmd-row:hover .cmd-chip { border-color: var(--purple-light); box-shadow: 0 0 10px var(--purple-glow); color: var(--purple-light); }
+    .cmd-chip { font-family: 'Cascadia Code', 'Fira Code', 'Courier New', monospace; font-size: 12px; background: var(--bg3); border: 1px solid var(--border); padding: 4px 10px; border-radius: 6px; color: var(--cyan); white-space: nowrap; flex-shrink: 0; transition: all 0.15s; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+    .cmd-desc { font-size: 12px; color: var(--text-dim); line-height: 1.4; padding-top: 2px; }
+    .cmd-copy-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--purple); color: white; padding: 8px 20px; border-radius: 20px; font-size: 13px; font-weight: 600; z-index: 9999; animation: toast-in 0.2s ease; pointer-events: none; box-shadow: 0 4px 20px var(--purple-glow); }
+    @keyframes toast-in { from { opacity: 0; transform: translateX(-50%) translateY(8px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+    .guide-tip { background: rgba(0,255,204,0.04); border: 1px solid rgba(0,255,204,0.15); border-radius: 10px; padding: 12px 16px; font-size: 12px; color: var(--text-dim); line-height: 1.6; margin-top: 16px; }
+    .guide-tip strong { color: var(--cyan); }
+    .model-table { width: 100%; border-collapse: collapse; }
+    .model-table th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text-muted); padding: 8px 12px; border-bottom: 1px solid var(--border); }
+    .model-table td { padding: 10px 12px; border-bottom: 1px solid rgba(42,42,58,0.5); font-size: 12px; vertical-align: top; }
+    .model-table tr:hover td { background: rgba(168,85,247,0.04); }
+    .model-alias { font-family: monospace; color: var(--cyan); font-size: 12px; }
+    .model-name { color: var(--text-dim); font-size: 11px; }
+    .cron-row { display: flex; align-items: center; gap: 14px; padding: 10px 0; border-bottom: 1px solid rgba(42,42,58,0.6); }
+    .cron-time { font-family: monospace; color: var(--cyan); font-size: 13px; font-weight: 700; width: 50px; flex-shrink: 0; }
+    .cron-name { font-size: 13px; color: var(--text); font-weight: 600; }
+    .cron-desc { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+    .guide-hidden { display: none !important; }
+    body.light .guide-card { background: rgba(255,255,255,0.9); }
+    body.light .cmd-chip { background: #f0f0f8; }
+    @media (max-width: 768px) {
+      .guide-grid { grid-template-columns: 1fr !important; }
+      .guide-card[style*="grid-column"] { grid-column: span 1 !important; }
+      .model-table th:nth-child(3), .model-table td:nth-child(3) { display: none; }
+      .cmd-chip { max-width: 160px; font-size: 11px; }
+    }
+
     /* ── Page transitions ── */
     .page { display: none; animation: page-in 0.3s ease; }
     .page.active { display: block; }
@@ -254,6 +296,45 @@
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
     ::-webkit-scrollbar-thumb:hover { background: var(--purple); }
+
+    /* ── Aurora Blobs ── */
+    .aurora { position: fixed; border-radius: 50%; filter: blur(90px); pointer-events: none; z-index: 0; animation: aurora-drift var(--dur, 20s) ease-in-out infinite alternate; }
+    .aurora-1 { width: 700px; height: 700px; background: radial-gradient(circle, rgba(123,47,190,0.5) 0%, transparent 70%); top: -250px; left: -250px; --dur: 22s; opacity: 0.5; }
+    .aurora-2 { width: 600px; height: 600px; background: radial-gradient(circle, rgba(0,255,204,0.3) 0%, transparent 70%); bottom: -200px; right: -200px; --dur: 28s; opacity: 0.45; animation-delay: -10s; }
+    .aurora-3 { width: 500px; height: 500px; background: radial-gradient(circle, rgba(96,165,250,0.25) 0%, transparent 70%); top: 35%; left: 45%; --dur: 16s; opacity: 0.4; animation-delay: -6s; }
+    @keyframes aurora-drift { 0% { transform: translate(0,0) scale(1); } 100% { transform: translate(80px,60px) scale(1.18); } }
+    body.light .aurora { display: none; }
+
+    /* ── Cursor Glow ── */
+    #cursor-glow { position: fixed; pointer-events: none; z-index: 1; width: 500px; height: 500px; border-radius: 50%; background: radial-gradient(circle, rgba(168,85,247,0.07) 0%, transparent 65%); transform: translate(-50%, -50%); top: 0; left: 0; transition: left 0.08s, top 0.08s; }
+    body.light #cursor-glow { display: none; }
+
+    /* ── Moving Scanline ── */
+    #scanline { position: fixed; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, transparent 0%, rgba(0,255,204,0.35) 50%, transparent 100%); z-index: 999; pointer-events: none; animation: scandown 9s linear infinite; top: 0; }
+    @keyframes scandown { 0% { top: -2px; opacity: 0; } 4% { opacity: 1; } 96% { opacity: 0.6; } 100% { top: 100vh; opacity: 0; } }
+    body.light #scanline { display: none; }
+
+    /* ── Nav Active Pulse ── */
+    .nav-item.active { animation: nav-glow 3s ease-in-out infinite; }
+    @keyframes nav-glow { 0%,100% { background: rgba(168,85,247,0.06); } 50% { background: rgba(168,85,247,0.16); box-shadow: inset 3px 0 16px rgba(168,85,247,0.2); } }
+
+    /* ── Stat Card Stagger Entrance ── */
+    @keyframes stat-enter { from { opacity: 0; transform: translateY(22px) scale(0.94); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
+    /* ── Neon Text Flicker ── */
+    @keyframes neon-flicker { 0%,88%,100% { opacity: 1; text-shadow: 0 0 12px rgba(0,255,204,0.5); } 89% { opacity: 0.55; text-shadow: none; } 91% { opacity: 1; text-shadow: 0 0 18px rgba(0,255,204,0.7); } 93% { opacity: 0.7; text-shadow: none; } 95% { opacity: 1; } }
+    .surprise-name { animation: neon-flicker 9s ease-in-out infinite; }
+
+    /* ── Typing Dots ── */
+    @keyframes dot-bounce { 0%,60%,100% { transform: translateY(0); opacity: 0.5; } 30% { transform: translateY(-7px); opacity: 1; } }
+    .typing-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--purple-light); margin: 0 3px; animation: dot-bounce 1.2s ease-in-out infinite; }
+    .typing-dot:nth-child(2) { animation-delay: 0.18s; }
+    .typing-dot:nth-child(3) { animation-delay: 0.36s; }
+
+    /* ── Topbar extra shimmer ── */
+    @keyframes topbar-shimmer { 0% { background-position: -200% center; } 100% { background-position: 200% center; } }
+    .topbar-sub { background: linear-gradient(90deg, var(--text-muted) 0%, var(--cyan) 50%, var(--text-muted) 100%); background-size: 200% auto; -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; animation: topbar-shimmer 6s linear infinite; }
+    body.light .topbar-sub { background: none; -webkit-text-fill-color: var(--text-dim); }
 
     /* ── Misc ── */
     .loading { color: var(--text-muted); font-size: 13px; padding: 20px; text-align: center; }
@@ -346,12 +427,17 @@
 </head>
 <body>
 <canvas id="bg-canvas"></canvas>
+<div class="aurora aurora-1"></div>
+<div class="aurora aurora-2"></div>
+<div class="aurora aurora-3"></div>
+<div id="cursor-glow"></div>
+<div id="scanline"></div>
 
 <div class="layout">
   <!-- Topbar -->
   <header class="topbar">
     <span class="logo"><span class="p1">🔮 PHANTOM</span> <span class="p2">CMD</span></span>
-    <span class="topbar-sub">Theodore's AI Agent</span>
+    <span class="topbar-sub">Offline's AI Agent</span>
     <div class="topbar-status">
       <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()">☀️ Light</button>
       <div class="dot" id="bot-dot"></div>
@@ -370,6 +456,7 @@
     <div class="nav-item" onclick="showPage('memory',this)"><span class="nav-icon">🧠</span> Memory</div>
     <div class="nav-item" onclick="showPage('chat',this)"><span class="nav-icon">💬</span> Chat</div>
     <div class="nav-item" onclick="showPage('routing',this)"><span class="nav-icon">🔀</span> Routing Log</div>
+    <div class="nav-item" onclick="showPage('guide',this)"><span class="nav-icon">📖</span> Command Guide</div>
   </nav>
 
   <!-- Main -->
@@ -423,7 +510,7 @@
     <div id="page-memory" class="page">
       <div class="section-header"><h1>Memory Bank</h1></div>
       <div class="memory-tabs">
-        <div class="mem-tab active" onclick="loadMemoryFile('about_manuel',this)">About Theodore</div>
+        <div class="mem-tab active" onclick="loadMemoryFile('about_manuel',this)">About Offline</div>
         <div class="mem-tab" onclick="loadMemoryFile('projects',this)">Projects</div>
         <div class="mem-tab" onclick="loadMemoryFile('skills',this)">Skills</div>
         <div class="mem-tab" onclick="loadMemoryFile('research_log',this)">Research Log</div>
@@ -439,7 +526,7 @@
       <div class="section-header"><h1>Chat with Phantom</h1><span class="badge">auto-routed</span></div>
       <div class="chat-container">
         <div class="chat-messages" id="chat-messages">
-          <div class="message assistant">Hey Theodore — I'm live. Ask me anything or give me a task. I'll route it to the right model.<div class="provider-badge">phantom • ready</div></div>
+          <div class="message assistant">Hey Offline — I'm live. Ask me anything or give me a task. I'll route it to the right model.<div class="provider-badge">phantom • ready</div></div>
         </div>
         <div class="chat-input-area">
           <input class="chat-input" id="chat-input" placeholder="Ask anything..." onkeydown="if(event.key==='Enter')sendChat()" />
@@ -454,6 +541,245 @@
       <div class="card" id="routing-log-container"><div class="loading">Loading...</div></div>
     </div>
 
+    <!-- Command Guide -->
+    <div id="page-guide" class="page">
+      <div class="section-header">
+        <h1>Command Guide</h1>
+        <span class="badge">click to copy</span>
+      </div>
+
+      <div class="guide-search-wrap">
+        <input class="guide-search" id="guide-search" placeholder="Search commands..." oninput="filterGuide(this.value)" />
+      </div>
+
+      <div class="guide-grid" id="guide-grid">
+
+        <!-- Natural Language -->
+        <div class="guide-card" data-guide-card>
+          <div class="guide-card-header">
+            <span class="guide-card-icon">💬</span>
+            <div><div class="guide-card-title">Natural Language Chat</div><div class="guide-card-desc">Just talk — Phantom routes it to the right model</div></div>
+          </div>
+          <div class="cmd-list">
+            <div class="cmd-row" onclick="copyCmd('hey what\'s up')"><div class="cmd-chip">hey what's up</div><div class="cmd-desc">General chat — auto-routed</div></div>
+            <div class="cmd-row" onclick="copyCmd('explain how X works')"><div class="cmd-chip">explain how X works</div><div class="cmd-desc">Simple Q&A → LM Studio (free)</div></div>
+            <div class="cmd-row" onclick="copyCmd('write me a Python script that...')"><div class="cmd-chip">write me a Python script...</div><div class="cmd-desc">Code tasks → Claude (smart routing)</div></div>
+            <div class="cmd-row" onclick="copyCmd('what did you build?')"><div class="cmd-chip">what did you build?</div><div class="cmd-desc">Show last overnight build</div></div>
+            <div class="cmd-row" onclick="copyCmd('what did you research?')"><div class="cmd-chip">what did you research?</div><div class="cmd-desc">Show last research log entry</div></div>
+          </div>
+        </div>
+
+        <!-- Working Context -->
+        <div class="guide-card" data-guide-card>
+          <div class="guide-card-header">
+            <span class="guide-card-icon">🎯</span>
+            <div><div class="guide-card-title">Working Context</div><div class="guide-card-desc">Tell Phantom which repo to target — persists across restarts</div></div>
+          </div>
+          <div class="cmd-list">
+            <div class="cmd-row" onclick="copyCmd('work on color-palette-generator')"><div class="cmd-chip">work on [repo-name]</div><div class="cmd-desc">Focus on a GitHub repo (mrosadevs/repo)</div></div>
+            <div class="cmd-row" onclick="copyCmd('work on C:/Users/viole/...')"><div class="cmd-chip">work on C:/path/to/repo</div><div class="cmd-desc">Focus on a local directory</div></div>
+            <div class="cmd-row" onclick="copyCmd('focus on my-project')"><div class="cmd-chip">focus on [repo-name]</div><div class="cmd-desc">Same as work on</div></div>
+            <div class="cmd-row" onclick="copyCmd('context')"><div class="cmd-chip">context</div><div class="cmd-desc">Show current working context</div></div>
+            <div class="cmd-row" onclick="copyCmd('clear context')"><div class="cmd-chip">clear context</div><div class="cmd-desc">Reset — back to ClaudeCoWork default</div></div>
+          </div>
+          <div class="guide-tip">💡 Once set, every edit/commit/push goes to the right repo. Say <strong>work on color-palette-generator</strong> then <strong>add a dark mode toggle</strong> — Claude knows where.</div>
+        </div>
+
+        <!-- Model Switching -->
+        <div class="guide-card" data-guide-card>
+          <div class="guide-card-header">
+            <span class="guide-card-icon">🤖</span>
+            <div><div class="guide-card-title">Model Switching</div><div class="guide-card-desc">Lock or switch models mid-conversation</div></div>
+          </div>
+          <div class="cmd-list">
+            <div class="cmd-row" onclick="copyCmd('use opus')"><div class="cmd-chip">use opus</div><div class="cmd-desc">Lock to Claude Opus 4.5 (best reasoning)</div></div>
+            <div class="cmd-row" onclick="copyCmd('use sonnet')"><div class="cmd-chip">use sonnet</div><div class="cmd-desc">Lock to Claude Sonnet 4.6 (smart + fast)</div></div>
+            <div class="cmd-row" onclick="copyCmd('use haiku')"><div class="cmd-chip">use haiku</div><div class="cmd-desc">Lock to Claude Haiku 4.5 (fastest Claude)</div></div>
+            <div class="cmd-row" onclick="copyCmd('use lm')"><div class="cmd-chip">use lm</div><div class="cmd-desc">Lock to LM Studio (local, free)</div></div>
+            <div class="cmd-row" onclick="copyCmd('use groq')"><div class="cmd-chip">use groq</div><div class="cmd-desc">Lock to Groq Llama 70B (fast, free)</div></div>
+            <div class="cmd-row" onclick="copyCmd('use gemini')"><div class="cmd-chip">use gemini</div><div class="cmd-desc">Lock to Gemini 2.5 Pro (Google Search)</div></div>
+            <div class="cmd-row" onclick="copyCmd('use auto')"><div class="cmd-chip">use auto</div><div class="cmd-desc">Back to smart auto-routing</div></div>
+            <div class="cmd-row" onclick="copyCmd('/opus')"><div class="cmd-chip">/opus  /sonnet  /haiku</div><div class="cmd-desc">Shorthand slash commands</div></div>
+            <div class="cmd-row" onclick="copyCmd('code with opus')"><div class="cmd-chip">code with opus</div><div class="cmd-desc">Natural language model switch</div></div>
+            <div class="cmd-row" onclick="copyCmd('which model')"><div class="cmd-chip">which model</div><div class="cmd-desc">Show current model or routing mode</div></div>
+          </div>
+        </div>
+
+        <!-- Research -->
+        <div class="guide-card" data-guide-card>
+          <div class="guide-card-header">
+            <span class="guide-card-icon">🔬</span>
+            <div><div class="guide-card-title">Research Commands</div><div class="guide-card-desc">Multi-source research briefs</div></div>
+          </div>
+          <div class="cmd-list">
+            <div class="cmd-row" onclick="copyCmd('last30 AI coding tools')"><div class="cmd-chip">last30 [topic]</div><div class="cmd-desc">30-day brief: Brave (6 angles) + HN Algolia. Routes to active model or LM Studio</div></div>
+            <div class="cmd-row" onclick="copyCmd('gemini research TypeScript 2025')"><div class="cmd-chip">gemini research [topic]</div><div class="cmd-desc">Deep research via Gemini + Google Search grounding</div></div>
+            <div class="cmd-row" onclick="copyCmd('g research React trends')"><div class="cmd-chip">g research [topic]</div><div class="cmd-desc">Shorthand for gemini research</div></div>
+            <div class="cmd-row" onclick="copyCmd('research overnight AI agents')"><div class="cmd-chip">research overnight [topic]</div><div class="cmd-desc">Queue for 11 PM nightly research run — Theodore runs it while you sleep</div></div>
+            <div class="cmd-row" onclick="copyCmd('what did you research?')"><div class="cmd-chip">what did you research?</div><div class="cmd-desc">Show the latest research log entry</div></div>
+          </div>
+        </div>
+
+        <!-- Building -->
+        <div class="guide-card" data-guide-card>
+          <div class="guide-card-header">
+            <span class="guide-card-icon">🏗️</span>
+            <div><div class="guide-card-title">Building</div><div class="guide-card-desc">Claude builds real projects with files, git, GitHub</div></div>
+          </div>
+          <div class="cmd-list">
+            <div class="cmd-row" onclick="copyCmd('build me a React dashboard with dark mode')"><div class="cmd-chip">build me [description]</div><div class="cmd-desc">Claude builds in ClaudeCoWork/, creates GitHub repo, pushes live</div></div>
+            <div class="cmd-row" onclick="copyCmd('build a Python CLI tool that...')"><div class="cmd-chip">build [description]</div><div class="cmd-desc">Same as build me</div></div>
+            <div class="cmd-row" onclick="copyCmd('codex scaffold React todo app')"><div class="cmd-chip">codex scaffold [description]</div><div class="cmd-desc">Gemini creates starter scaffold in CodexCoWork/ for VS Code Codex</div></div>
+            <div class="cmd-row" onclick="copyCmd('scaffold Next.js portfolio')"><div class="cmd-chip">scaffold [description]</div><div class="cmd-desc">Shorthand for codex scaffold</div></div>
+            <div class="cmd-row" onclick="copyCmd('what did you build?')"><div class="cmd-chip">what did you build?</div><div class="cmd-desc">Show the last overnight build summary</div></div>
+          </div>
+          <div class="guide-tip">💡 Set context first with <strong>work on [repo]</strong> to make edits to an existing repo instead of starting fresh.</div>
+        </div>
+
+        <!-- Web Search -->
+        <div class="guide-card" data-guide-card>
+          <div class="guide-card-header">
+            <span class="guide-card-icon">🌐</span>
+            <div><div class="guide-card-title">Web Search</div><div class="guide-card-desc">Auto-routes to Gemini (real Google Search)</div></div>
+          </div>
+          <div class="cmd-list">
+            <div class="cmd-row" onclick="copyCmd('search the web for best AI tools 2025')"><div class="cmd-chip">search the web for...</div><div class="cmd-desc">Triggers Gemini + Google Search</div></div>
+            <div class="cmd-row" onclick="copyCmd('what\'s the weather in Port Charlotte')"><div class="cmd-chip">what's the weather in...</div><div class="cmd-desc">Real-time weather via Gemini</div></div>
+            <div class="cmd-row" onclick="copyCmd('latest news about Claude 4')"><div class="cmd-chip">latest news about...</div><div class="cmd-desc">Current news via Gemini Google Search</div></div>
+            <div class="cmd-row" onclick="copyCmd('find online the price of RTX 5090')"><div class="cmd-chip">find online...</div><div class="cmd-desc">Any live lookup → auto-routed to Gemini</div></div>
+            <div class="cmd-row" onclick="copyCmd('google it for me: best lm studio models')"><div class="cmd-chip">google it / look it up</div><div class="cmd-desc">Natural phrases that trigger web search</div></div>
+          </div>
+        </div>
+
+        <!-- Memory -->
+        <div class="guide-card" data-guide-card>
+          <div class="guide-card-header">
+            <span class="guide-card-icon">🧠</span>
+            <div><div class="guide-card-title">Memory Commands</div><div class="guide-card-desc">Phantom remembers facts about you across sessions</div></div>
+          </div>
+          <div class="cmd-list">
+            <div class="cmd-row" onclick="copyCmd('remember I prefer TypeScript over JavaScript')"><div class="cmd-chip">remember [fact]</div><div class="cmd-desc">Save a fact to long-term memory permanently</div></div>
+            <div class="cmd-row" onclick="copyCmd('forget JavaScript preference')"><div class="cmd-chip">forget [keyword]</div><div class="cmd-desc">Remove matching lines from memory</div></div>
+          </div>
+          <div class="guide-tip">💡 Phantom also <strong>auto-saves</strong> personal facts from conversations (birthday, preferences, goals, etc.) — no need to say "remember" every time.</div>
+        </div>
+
+        <!-- System -->
+        <div class="guide-card" data-guide-card>
+          <div class="guide-card-header">
+            <span class="guide-card-icon">⚙️</span>
+            <div><div class="guide-card-title">System Commands</div><div class="guide-card-desc">Status, installs, scheduling</div></div>
+          </div>
+          <div class="cmd-list">
+            <div class="cmd-row" onclick="copyCmd('status')"><div class="cmd-chip">status</div><div class="cmd-desc">System health — all services + current model</div></div>
+            <div class="cmd-row" onclick="copyCmd('ping')"><div class="cmd-chip">ping</div><div class="cmd-desc">Same as status</div></div>
+            <div class="cmd-row" onclick="copyCmd('install brave search')"><div class="cmd-chip">install [mcp name]</div><div class="cmd-desc">Install an MCP server via skill manager</div></div>
+            <div class="cmd-row" onclick="copyCmd('learn https://github.com/user/skill')"><div class="cmd-chip">learn [url]</div><div class="cmd-desc">Install a skill from GitHub or ClawHub URL</div></div>
+            <div class="cmd-row" onclick="copyCmd('schedule remind me to check backups at 9am every day')"><div class="cmd-chip">schedule [task] at [time]</div><div class="cmd-desc">Add a recurring DM reminder — persists across restarts</div></div>
+            <div class="cmd-row" onclick="copyCmd('my schedule')"><div class="cmd-chip">my schedule</div><div class="cmd-desc">List all your custom scheduled jobs</div></div>
+            <div class="cmd-row" onclick="copyCmd('cancel schedule backups')"><div class="cmd-chip">cancel schedule [name]</div><div class="cmd-desc">Remove a recurring scheduled job by name</div></div>
+          </div>
+        </div>
+
+        <!-- Debrief Commands -->
+        <div class="guide-card" data-guide-card>
+          <div class="guide-card-header">
+            <span class="guide-card-icon">📋</span>
+            <div><div class="guide-card-title">Daily Debriefs</div><div class="guide-card-desc">Auto-delivered by Theodore — also fireable on demand</div></div>
+          </div>
+          <div class="cmd-list">
+            <div class="cmd-row" onclick="copyCmd('give me my morning debrief')"><div class="cmd-chip">morning debrief</div><div class="cmd-desc">Fire the 8AM briefing now: news, weather, overnight summary, skill suggestions</div></div>
+            <div class="cmd-row" onclick="copyCmd('give me my evening debrief')"><div class="cmd-chip">evening debrief</div><div class="cmd-desc">Fire the 10PM wrap-up now: day recap, repo ideas, overnight plan</div></div>
+            <div class="cmd-row" onclick="copyCmd('research overnight Claude MCP servers')"><div class="cmd-chip">research overnight [topic]</div><div class="cmd-desc">Queue a topic for tonight's 11PM research run</div></div>
+            <div class="cmd-row" onclick="copyCmd('what did you build?')"><div class="cmd-chip">what did you build?</div><div class="cmd-desc">Show the latest overnight build summary</div></div>
+            <div class="cmd-row" onclick="copyCmd('what did you research?')"><div class="cmd-chip">what did you research?</div><div class="cmd-desc">Show the latest overnight research results</div></div>
+          </div>
+          <div class="guide-tip">💡 Theodore delivers these automatically at <strong>8 AM</strong> and <strong>10 PM</strong> via Discord DM. You can also trigger them anytime by asking.</div>
+        </div>
+
+        <!-- Cron Schedule -->
+        <div class="guide-card" data-guide-card>
+          <div class="guide-card-header">
+            <span class="guide-card-icon">🕐</span>
+            <div><div class="guide-card-title">Cron Schedule</div><div class="guide-card-desc">What Theodore does automatically every day</div></div>
+          </div>
+          <div>
+            <div class="cron-row">
+              <div class="cron-time">8 AM</div>
+              <div><div class="cron-name">🌅 Morning Debrief</div><div class="cron-desc">News briefing (headlines, Cuba, cartel, gaming, AI), weather, overnight summary, new skills</div></div>
+            </div>
+            <div class="cron-row">
+              <div class="cron-time">10 PM</div>
+              <div><div class="cron-name">🌙 Evening Debrief</div><div class="cron-desc">Day recap, repo scan, feature ideas, overnight research plan, build plan</div></div>
+            </div>
+            <div class="cron-row">
+              <div class="cron-time">10 PM</div>
+              <div><div class="cron-name">🧠 Memory Sync</div><div class="cron-desc">Consolidates and organizes memory files</div></div>
+            </div>
+            <div class="cron-row">
+              <div class="cron-time">11 PM</div>
+              <div><div class="cron-name">🔬 Nightly Research</div><div class="cron-desc">Runs queued research topics from the day, writes to research-log.md</div></div>
+            </div>
+            <div class="cron-row" style="border-bottom:none">
+              <div class="cron-time">2 AM</div>
+              <div><div class="cron-name">✨ Overnight Build</div><div class="cron-desc">Autonomously picks something from backlog or invents a new tool and builds it — shown in Surprises tab</div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Models Table -->
+        <div class="guide-card" style="grid-column: span 2;" data-guide-card>
+          <div class="guide-card-header">
+            <span class="guide-card-icon">🌐</span>
+            <div><div class="guide-card-title">Model Registry</div><div class="guide-card-desc">All available models and when the router picks them</div></div>
+          </div>
+          <table class="model-table">
+            <thead><tr><th>Alias</th><th>Model</th><th>Provider</th><th>Best For</th><th>Cost</th></tr></thead>
+            <tbody>
+              <tr><td><span class="model-alias">sonnet / claude</span></td><td><span class="model-name">claude-sonnet-4-6</span></td><td>Claude Code (Max sub)</td><td>Code, complex tasks, multi-step builds</td><td style="color:var(--yellow)">Max quota</td></tr>
+              <tr><td><span class="model-alias">opus</span></td><td><span class="model-name">claude-opus-4-5</span></td><td>Claude Code (Max sub)</td><td>Hardest reasoning, architecture, deep thinking</td><td style="color:var(--yellow)">Max quota (heavy)</td></tr>
+              <tr><td><span class="model-alias">haiku</span></td><td><span class="model-name">claude-haiku-4-5</span></td><td>Claude Code (Max sub)</td><td>Fast Claude tasks, lightweight code</td><td style="color:var(--yellow)">Max quota (light)</td></tr>
+              <tr><td><span class="model-alias">lm / local</span></td><td><span class="model-name">LM Studio loaded model</span></td><td>LM Studio (localhost)</td><td>Simple Q&A, formatting, drafts, chat</td><td style="color:var(--green)">Free (local)</td></tr>
+              <tr><td><span class="model-alias">groq</span></td><td><span class="model-name">llama-3.3-70b-versatile</span></td><td>Groq Cloud</td><td>Fast chat, vision tasks, speech, fallback</td><td style="color:var(--green)">Free tier</td></tr>
+              <tr><td><span class="model-alias">gemini</span></td><td><span class="model-name">gemini-2.5-pro</span></td><td>Gemini CLI (Pro sub)</td><td>Web search, research, real-time info, scaffolding</td><td style="color:var(--green)">Pro sub</td></tr>
+            </tbody>
+          </table>
+          <div class="guide-tip" style="margin-top:14px">💡 <strong>Auto-routing</strong>: Simple chat → LM Studio. Code/build/github keywords → Claude. Vision/speech → Groq. "search the web" / weather / news → Gemini. Manual override wins above all.</div>
+        </div>
+
+        <!-- Tips -->
+        <div class="guide-card" data-guide-card>
+          <div class="guide-card-header">
+            <span class="guide-card-icon">💡</span>
+            <div><div class="guide-card-title">Pro Tips</div><div class="guide-card-desc">Things worth knowing</div></div>
+          </div>
+          <div class="cmd-list">
+            <div class="cmd-row" onclick="copyCmd('work on my-repo\nadd a dark mode toggle and push it')"><div class="cmd-chip">work on → then edit</div><div class="cmd-desc">Set context first, then describe changes. Claude targets the right repo.</div></div>
+            <div class="cmd-row" onclick="copyCmd('use opus\nbuild me a full auth system')"><div class="cmd-chip">use opus → then build</div><div class="cmd-desc">Switch to best model before a complex task</div></div>
+            <div class="cmd-row" onclick="copyCmd('use auto')"><div class="cmd-chip">use auto</div><div class="cmd-desc">Always reset after forcing a model — saves quota</div></div>
+            <div class="cmd-row" onclick="copyCmd('last30 AI coding tools 2025')"><div class="cmd-chip">last30 before building</div><div class="cmd-desc">Research before you build — know what already exists</div></div>
+            <div class="cmd-row" onclick="copyCmd('remember I\'m building X for Y reason')"><div class="cmd-chip">remember your goals</div><div class="cmd-desc">Tell Phantom your current goal — it influences overnight builds</div></div>
+          </div>
+        </div>
+
+        <!-- Directories -->
+        <div class="guide-card" data-guide-card>
+          <div class="guide-card-header">
+            <span class="guide-card-icon">📁</span>
+            <div><div class="guide-card-title">Key Directories</div><div class="guide-card-desc">Where things live on your machine</div></div>
+          </div>
+          <div class="cmd-list">
+            <div class="cmd-row" onclick="copyCmd('C:\\Users\\viole\\OneDrive\\Documents\\ClaudeCoWork')"><div class="cmd-chip">ClaudeCoWork/</div><div class="cmd-desc">Where Claude builds all projects (build me...)</div></div>
+            <div class="cmd-row" onclick="copyCmd('C:\\Users\\viole\\OneDrive\\Documents\\CodexCoWork')"><div class="cmd-chip">CodexCoWork/</div><div class="cmd-desc">Where Gemini scaffolds projects (codex scaffold...)</div></div>
+            <div class="cmd-row" onclick="copyCmd('C:\\Users\\viole\\OneDrive\\Documents\\ClaudeCoWork\\Phantom-Command-Center')"><div class="cmd-chip">Phantom-Command-Center/</div><div class="cmd-desc">This system — the bot, dashboard, agents</div></div>
+            <div class="cmd-row" onclick="copyCmd('memory/')"><div class="cmd-chip">memory/</div><div class="cmd-desc">All memory files — editable from Memory tab</div></div>
+            <div class="cmd-row" onclick="copyCmd('.learnings/')"><div class="cmd-chip">.learnings/</div><div class="cmd-desc">Claude's self-improvement logs (ERRORS.md, LEARNINGS.md)</div></div>
+          </div>
+        </div>
+
+      </div><!-- end guide-grid -->
+    </div><!-- end page-guide -->
+
   </main>
 </div>
 
@@ -461,10 +787,10 @@
 <nav class="bottom-nav" id="bottom-nav">
   <button class="bn-item active" onclick="showPage('overview',this,true)"><span class="bn-icon">🏠</span>Home</button>
   <button class="bn-item" onclick="showPage('surprises',this,true)"><span class="bn-icon">✨</span>Builds</button>
-  <button class="bn-item" onclick="showPage('research',this,true)"><span class="bn-icon">🔬</span>Research</button>
   <button class="bn-item" onclick="showPage('chat',this,true)"><span class="bn-icon">💬</span>Chat</button>
   <button class="bn-item" onclick="showPage('memory',this,true)"><span class="bn-icon">🧠</span>Memory</button>
-  <button class="bn-item" onclick="showPage('routing',this,true)"><span class="bn-icon">🔀</span>Routes</button>
+  <button class="bn-item" onclick="showPage('research',this,true)"><span class="bn-icon">🔬</span>Research</button>
+  <button class="bn-item" onclick="showPage('guide',this,true)"><span class="bn-icon">📖</span>Guide</button>
 </nav>
 
 <script>
@@ -476,7 +802,10 @@ let currentMemoryFile = 'about_manuel';
   const canvas = document.getElementById('bg-canvas');
   const ctx = canvas.getContext('2d');
   let W, H, particles = [];
-  const COUNT = 80;
+  const COUNT = 130;
+  let mouseX = -9999, mouseY = -9999;
+
+  document.addEventListener('mousemove', e => { mouseX = e.clientX; mouseY = e.clientY; });
 
   function resize() {
     W = canvas.width = window.innerWidth;
@@ -488,37 +817,56 @@ let currentMemoryFile = 'about_manuel';
   for (let i = 0; i < COUNT; i++) {
     particles.push({
       x: Math.random() * 1920, y: Math.random() * 1080,
-      vx: (Math.random() - 0.5) * 0.4, vy: (Math.random() - 0.5) * 0.4,
-      r: Math.random() * 1.5 + 0.5, a: Math.random()
+      vx: (Math.random() - 0.5) * 0.45, vy: (Math.random() - 0.5) * 0.45,
+      r: Math.random() * 1.8 + 0.4, a: Math.random() * 0.7 + 0.3,
+      hue: Math.random() > 0.7 ? 'cyan' : 'purple'
     });
   }
 
   function draw() {
     ctx.clearRect(0, 0, W, H);
-    // Draw grid lines
-    ctx.strokeStyle = 'rgba(168,85,247,0.06)';
+
+    // Grid lines
     ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(168,85,247,0.05)';
     for (let x = 0; x < W; x += 60) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
     for (let y = 0; y < H; y += 60) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
 
-    // Draw particles + connections
+    // Particles + connections
     particles.forEach((p, i) => {
+      // Mouse attraction
+      const mdx = mouseX - p.x, mdy = mouseY - p.y;
+      const md = Math.hypot(mdx, mdy);
+      if (md < 220 && md > 0) {
+        p.vx += (mdx / md) * 0.018;
+        p.vy += (mdy / md) * 0.018;
+        const sp = Math.hypot(p.vx, p.vy);
+        if (sp > 2) { p.vx = (p.vx/sp)*2; p.vy = (p.vy/sp)*2; }
+      }
+      // Slight return to original speed
+      p.vx *= 0.999;
+      p.vy *= 0.999;
+
       p.x += p.vx; p.y += p.vy;
       if (p.x < 0 || p.x > W) p.vx *= -1;
       if (p.y < 0 || p.y > H) p.vy *= -1;
 
+      const color = p.hue === 'cyan' ? `rgba(0,255,204,${p.a*0.6})` : `rgba(168,85,247,${p.a*0.8})`;
       ctx.beginPath();
       ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
-      ctx.fillStyle = `rgba(168,85,247,${p.a * 0.8})`;
+      ctx.fillStyle = color;
       ctx.fill();
 
       for (let j = i+1; j < particles.length; j++) {
         const q = particles[j];
         const d = Math.hypot(p.x-q.x, p.y-q.y);
-        if (d < 120) {
+        if (d < 140) {
+          const alpha = (1-d/140) * 0.14;
           ctx.beginPath();
           ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y);
-          ctx.strokeStyle = `rgba(168,85,247,${(1-d/120)*0.12})`;
+          ctx.strokeStyle = (p.hue === 'cyan' || q.hue === 'cyan')
+            ? `rgba(0,255,204,${alpha*0.8})` : `rgba(168,85,247,${alpha})`;
+          ctx.lineWidth = 0.5;
           ctx.stroke();
         }
       }
@@ -527,6 +875,13 @@ let currentMemoryFile = 'about_manuel';
   }
   draw();
 })();
+
+// ── Cursor Glow ──
+const _cg = document.getElementById('cursor-glow');
+document.addEventListener('mousemove', e => {
+  _cg.style.left = e.clientX + 'px';
+  _cg.style.top = e.clientY + 'px';
+});
 
 // ── Ripple on click ──
 document.addEventListener('click', e => {
@@ -595,14 +950,14 @@ async function loadOverview() {
       { value: data.routing.total || 0, label: 'Tasks Routed' },
     ];
     const sg = document.getElementById('stats-grid');
-    sg.innerHTML = stats.map(s => `
-      <div class="stat-card">
+    sg.innerHTML = stats.map((s, i) => `
+      <div class="stat-card" style="animation: stat-enter 0.5s cubic-bezier(0.34,1.56,0.64,1) ${i*90}ms both">
         <div class="stat-value" data-target="${s.value}">0</div>
         <div class="stat-label">${s.label}</div>
       </div>
     `).join('');
-    sg.querySelectorAll('[data-target]').forEach(el => {
-      animateCount(el, parseInt(el.dataset.target));
+    sg.querySelectorAll('[data-target]').forEach((el, i) => {
+      setTimeout(() => animateCount(el, parseInt(el.dataset.target)), i * 90);
     });
 
     // Services
@@ -698,7 +1053,7 @@ async function loadSchedule() {
     (data.jobs||[]).forEach(j => jobMap[j.id] = j);
     document.getElementById('schedule-body').innerHTML = (data.definitions||[]).map(def => {
       const job = jobMap[def.name] || {};
-      const nextRun = job.next_run ? new Date(job.next_run).toLocaleString() : 'Not scheduled';
+      const nextRun = job.next_run || 'Not scheduled';
       return `<tr>
         <td>${def.description||def.name}</td>
         <td class="schedule-cron">${def.cron}</td>
@@ -745,7 +1100,7 @@ async function sendChat() {
   // Typing indicator
   const typing = document.createElement('div');
   typing.className = 'message assistant'; typing.id = 'typing';
-  typing.innerHTML = '<span style="opacity:0.5;animation:float 1s ease-in-out infinite">···</span>';
+  typing.innerHTML = '<span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>';
   document.getElementById('chat-messages').appendChild(typing);
   document.getElementById('chat-messages').scrollTop = 999999;
   try {
@@ -823,6 +1178,44 @@ async function loadHeartbeat() {
   } catch {
     card.style.borderColor = 'var(--red)';
     body.innerHTML = `<div class="hb-ring offline">⚠️</div><div style="color:var(--red)">Cannot reach dashboard API</div>`;
+  }
+}
+
+// ── Guide: Copy to clipboard ──
+function copyCmd(text) {
+  navigator.clipboard.writeText(text).then(() => {
+    // Remove any existing toast
+    document.querySelector('.cmd-copy-toast')?.remove();
+    const toast = document.createElement('div');
+    toast.className = 'cmd-copy-toast';
+    toast.textContent = '✓ Copied to clipboard';
+    document.body.appendChild(toast);
+    if (navigator.vibrate) navigator.vibrate([15, 5, 15]);
+    setTimeout(() => toast.remove(), 1800);
+  }).catch(() => {
+    // Fallback for older browsers
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); ta.remove();
+  });
+}
+
+// ── Guide: Search / filter ──
+function filterGuide(query) {
+  const q = query.toLowerCase().trim();
+  const cards = document.querySelectorAll('[data-guide-card]');
+  cards.forEach(card => {
+    const text = card.textContent.toLowerCase();
+    card.classList.toggle('guide-hidden', q.length > 0 && !text.includes(q));
+  });
+  // Fix grid: if only 1 card visible, don't stretch the model table weirdly
+  const visibleCards = document.querySelectorAll('[data-guide-card]:not(.guide-hidden)');
+  const grid = document.getElementById('guide-grid');
+  if (visibleCards.length <= 1) {
+    grid.style.gridTemplateColumns = '1fr';
+  } else {
+    grid.style.gridTemplateColumns = '';
   }
 }
 

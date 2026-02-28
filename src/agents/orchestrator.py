@@ -54,6 +54,13 @@ async def process_request(request: str, source: str = "discord") -> dict:
         response = await groq_client.chat(request, system=system)
         actions.append("routed_to_groq")
 
+    elif route["provider"] == "gemini":
+        from src.utils import gemini_client
+        context = memory.get_full_context()
+        full_prompt = f"Context about Theodore:\n{context[:800]}\n\nMessage:\n{request}"
+        response = await gemini_client.chat(full_prompt)
+        actions.append("routed_to_gemini")
+
     return {
         "response": response,
         "provider": route["provider"],

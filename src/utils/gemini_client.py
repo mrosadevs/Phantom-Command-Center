@@ -11,32 +11,44 @@ Auth:        gemini auth login
 import asyncio
 import logging
 import os
+import sys
 from pathlib import Path
 
 from src.core.config import ROOT_DIR
+
+# On Windows, npm .cmd wrappers must be called with the .cmd suffix from Python subprocess
+GEMINI_CMD = "gemini.cmd" if sys.platform == "win32" else "gemini"
 
 logger = logging.getLogger(__name__)
 
 # Where Gemini-assisted projects get scaffolded
 CODEX_WORK_DIR = Path("C:/Users/viole/OneDrive/Documents/CodexCoWork")
 
-RESEARCH_PROMPT = """You are a sharp research analyst with access to Google Search.
-Research the following topic thoroughly using web search, then write a tight brief:
+RESEARCH_PROMPT = """Search Google for "{topic}" and write a research brief right now. Do not ask for clarification — just search and write.
 
-## Topic
-{topic}
+Format your response exactly like this:
 
-## Format
-**What's New** — 2-3 bullet points on biggest recent developments (specific, not vague)
-**Key Findings** — 4-5 concrete takeaways with data/numbers where available
-**Community Pulse** — Debates, consensus, emerging opinions
-**Worth Acting On** — 2-3 specific actionable recommendations
-**Sources** — List 4-6 relevant URLs
+## What's New
+2-3 bullet points on the biggest recent developments. Be specific — names, dates, numbers.
 
-Be direct. Only report what you find. No hallucinations. No padding."""
+## Key Findings
+4-5 concrete takeaways from what you found. Include data/numbers where available.
+
+## Community Pulse
+What's the current mood, debate, or consensus around this topic?
+
+## Worth Acting On
+2-3 specific, actionable recommendations based on what you found.
+
+## Sources
+List 4-6 relevant URLs from your search results.
+
+Topic: {topic}
+
+Search now and write the brief directly. No preamble. No asking for clarification."""
 
 
-async def research(topic: str, timeout: int = 120) -> str:
+async def research(topic: str, timeout: int = 240) -> str:
     """
     Run a deep research query via Gemini CLI with Google Search grounding.
     Falls back to a plain message if CLI isn't available or auth fails.
@@ -47,7 +59,7 @@ async def research(topic: str, timeout: int = 120) -> str:
         clean_env = {k: v for k, v in os.environ.items() if k not in ("CLAUDECODE",)}
 
         proc = await asyncio.create_subprocess_exec(
-            "gemini", "--prompt", prompt, "--output-format", "text",
+            GEMINI_CMD, "--prompt", prompt, "--output-format", "text",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             env=clean_env,
@@ -83,7 +95,7 @@ async def chat(prompt: str, system: str = "", timeout: int = 60) -> str:
         clean_env = {k: v for k, v in os.environ.items() if k not in ("CLAUDECODE",)}
 
         proc = await asyncio.create_subprocess_exec(
-            "gemini", "--prompt", full_prompt, "--output-format", "text",
+            GEMINI_CMD, "--prompt", full_prompt, "--output-format", "text",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             env=clean_env,
@@ -120,11 +132,12 @@ async def scaffold_project(description: str, project_name: str = None) -> str:
     project_dir.mkdir(parents=True, exist_ok=True)
 
     prompt = (
-        f"Create a project scaffold for: {description}\n\n"
-        f"Generate starter files to open in VS Code. For each file use:\n"
-        f"=== FILE: path/to/file.ext ===\n[contents]\n\n"
-        f"Include: README.md, main entry file, config files, .gitignore. "
-        f"Keep implementations minimal — this is a scaffold for the developer to build on."
+        f"Generate a project scaffold for: {description}\n\n"
+        f"Output the files immediately using this exact format for each file:\n"
+        f"=== FILE: path/to/file.ext ===\n[file contents here]\n\n"
+        f"Include these files: README.md, main entry file, config/package files, .gitignore.\n"
+        f"Keep code minimal but working — this is a starter scaffold.\n"
+        f"Do not ask questions. Output the files now."
     )
 
     output = await chat(prompt, timeout=90)

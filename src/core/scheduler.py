@@ -5,15 +5,20 @@ Wraps APScheduler to run cron jobs defined in config/schedules.json.
 Each job runs a Python script from the scripts/ directory.
 """
 
+import json
 import logging
 import subprocess
 import sys
+from datetime import datetime
 from pathlib import Path
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from src.core.config import ROOT_DIR, load_schedules
+
+# File where Phantom saves his own dynamically added recurring jobs
+_DYNAMIC_JOBS_FILE = ROOT_DIR / "memory" / "dynamic-schedules.json"
 
 logger = logging.getLogger(__name__)
 
@@ -80,9 +85,130 @@ def setup_jobs():
         logger.info(f"Scheduled {name} ({cron_expr}): {task.get('description', '')}")
 
 
+def _load_dynamic_jobs() -> list:
+    """Load persisted dynamic jobs from disk."""
+    try:
+        if _DYNAMIC_JOBS_FILE.exists():
+            return json.loads(_DYNAMIC_JOBS_FILE.read_text(encoding="utf-8"))
+    except Exception as e:
+        logger.warning(f"Could not load dynamic schedules: {e}")
+    return []
+
+
+def _save_dynamic_jobs(jobs: list):
+    """Persist dynamic jobs to disk."""
+    _DYNAMIC_JOBS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    _DYNAMIC_JOBS_FILE.write_text(json.dumps(jobs, indent=2), encoding="utf-8")
+
+
+def _setup_dynamic_jobs():
+    """Register all persisted dynamic jobs with APScheduler."""
+    for job in _load_dynamic_jobs():
+        try:
+            _register_dynamic_job(job)
+            logger.info(f"Restored dynamic job: {job['name']} ({job['cron']})")
+        except Exception as e:
+            logger.warning(f"Could not restore dynamic job {job.get('name')}: {e}")
+
+
+def _register_dynamic_job(job: dict):
+    """Register a single dynamic job dict with APScheduler."""
+    parts = job["cron"].split()
+    trigger = CronTrigger(
+        minute=parts[0], hour=parts[1],
+        day=parts[2], month=parts[3], day_of_week=parts[4],
+    )
+    if job.get("type") == "dm":
+        # DM-type jobs: send a message via the bot (handled in heartbeat)
+        from src.agents.heartbeat import schedule_dm
+        scheduler.add_job(
+            schedule_dm,
+            trigger=trigger,
+            args=[job["payload"]],
+            id=job["id"],
+            name=job["name"],
+            replace_existing=True,
+        )
+    else:
+        scheduler.add_job(
+            _run_script,
+            trigger=trigger,
+            args=[job.get("script", "scripts/morning_briefing.py")],
+            id=job["id"],
+            name=job["name"],
+            replace_existing=True,
+        )
+
+
+def add_recurring_job(
+    name: str,
+    cron: str,
+    job_type: str = "dm",
+    payload: str = "",
+    script: str = "",
+) -> str:
+    """
+    Add a new recurring job dynamically (persisted across restarts).
+
+    Args:
+        name:     Human-readable name  (e.g. "gaming_debrief")
+        cron:     Standard cron expression (e.g. "0 21 * * *" for 9PM daily)
+        job_type: "dm" to DM Offline a message, "script" to run a script
+        payload:  The message to send (for dm jobs)
+        script:   Script path relative to ROOT_DIR (for script jobs)
+
+    Returns:
+        Confirmation string.
+    """
+    job_id = f"dynamic_{name}_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+    job = {
+        "id": job_id,
+        "name": name,
+        "cron": cron,
+        "type": job_type,
+        "payload": payload,
+        "script": script,
+        "added": datetime.now().isoformat(),
+    }
+
+    # Persist first, then register
+    jobs = _load_dynamic_jobs()
+    # Remove old job with same name if it exists
+    jobs = [j for j in jobs if j["name"] != name]
+    jobs.append(job)
+    _save_dynamic_jobs(jobs)
+
+    try:
+        _register_dynamic_job(job)
+        logger.info(f"Dynamic job added: {name} ({cron})")
+        return f"✅ Scheduled **{name}** — cron: `{cron}`"
+    except Exception as e:
+        logger.error(f"Failed to register dynamic job {name}: {e}")
+        return f"❌ Job saved but failed to activate: {e}"
+
+
+def remove_recurring_job(name: str) -> str:
+    """Remove a dynamic recurring job by name."""
+    jobs = _load_dynamic_jobs()
+    matching = [j for j in jobs if j["name"] == name]
+    if not matching:
+        return f"No dynamic job named '{name}' found."
+
+    for j in matching:
+        try:
+            scheduler.remove_job(j["id"])
+        except Exception:
+            pass
+
+    jobs = [j for j in jobs if j["name"] != name]
+    _save_dynamic_jobs(jobs)
+    return f"✅ Removed scheduled job: **{name}**"
+
+
 def start():
     """Start the APScheduler."""
     setup_jobs()
+    _setup_dynamic_jobs()  # Load Phantom's own scheduled jobs
     scheduler.start()
     logger.info("Scheduler started with all jobs")
 

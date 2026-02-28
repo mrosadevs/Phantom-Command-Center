@@ -27,7 +27,7 @@ sys.path.insert(0, str(ROOT))
 
 from src.core import memory, router
 from src.core.config import CONFIG, ROOT_DIR, SURPRISES_DIR, MEMORY_DIR
-from src.core.scheduler import get_jobs_status
+from apscheduler.triggers.cron import CronTrigger
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("phantom.dashboard")
@@ -134,20 +134,42 @@ async def get_surprises():
     return {"surprises": surprises}
 
 
+def _next_run_from_cron(cron_expr: str) -> Optional[str]:
+    """Compute the next fire time from a cron string without a running scheduler."""
+    try:
+        parts = cron_expr.strip().split()
+        trigger = CronTrigger(
+            minute=parts[0], hour=parts[1],
+            day=parts[2], month=parts[3], day_of_week=parts[4],
+        )
+        next_dt = trigger.get_next_fire_time(None, datetime.now())
+        if next_dt:
+            return next_dt.strftime("%b %d %I:%M %p")
+    except Exception:
+        pass
+    return None
+
+
 @app.get("/api/schedule")
 async def get_schedule():
-    """Get scheduled tasks and their next run times."""
-    try:
-        jobs = get_jobs_status()
-    except Exception:
-        jobs = []
-
+    """Get scheduled tasks and their next run times (computed from cron expressions)."""
     from src.core.config import load_schedules
     schedules_config = load_schedules()
+    tasks = schedules_config.get("tasks", [])
+
+    # Compute next_run from cron for each task — works without a live scheduler
+    jobs = []
+    for t in tasks:
+        jobs.append({
+            "id":       t.get("name", ""),
+            "name":     t.get("description", t.get("name", "")),
+            "next_run": _next_run_from_cron(t["cron"]) if t.get("enabled") and t.get("cron") else None,
+            "enabled":  t.get("enabled", True),
+        })
 
     return {
         "jobs": jobs,
-        "definitions": schedules_config.get("tasks", [])
+        "definitions": tasks,
     }
 
 

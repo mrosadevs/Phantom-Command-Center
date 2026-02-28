@@ -21,14 +21,18 @@ ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT))
 
 from src.core.config import CONFIG, get_secret
+from src.core import memory as mem_module
 from src.core.scheduler import start as start_scheduler, stop as stop_scheduler
-from src.agents.heartbeat import send_heartbeat
+from src.agents.heartbeat import send_heartbeat, set_bot as heartbeat_set_bot
 from src.interfaces.discord_commands import parse_command, handle_general_chat
 from src.interfaces.discord_commands import (
     handle_status, handle_learn, handle_install_mcp,
     handle_remember, handle_forget, handle_research_tonight,
     handle_build, handle_what_did_you_build, handle_what_did_you_research,
-    handle_schedule, handle_last30, handle_gemini_research, handle_codex_scaffold
+    handle_schedule, handle_last30, handle_gemini_research, handle_codex_scaffold,
+    handle_use_model, handle_which_model,
+    handle_work_on, handle_show_context, handle_clear_context,
+    handle_show_schedule, handle_cancel_schedule,
 )
 
 logging.basicConfig(
@@ -57,6 +61,9 @@ async def on_ready():
     """Called when the bot connects to Discord."""
     logger.info(f"Phantom connected as {bot.user} (ID: {bot.user.id})")
 
+    # Give heartbeat module access to the bot (needed for scheduled DMs)
+    heartbeat_set_bot(bot)
+
     # Start the task scheduler
     try:
         start_scheduler()
@@ -81,11 +88,11 @@ async def on_ready():
                 )
                 embed.add_field(name="Try", value=(
                     "`status` — system health\n"
-                    "`learn [url]` — install a skill\n"
-                    "`install [mcp name]` — install an MCP server\n"
+                    "`work on [repo]` — focus on a specific repo\n"
                     "`build me [description]` — build something\n"
-                    "`research [topic] tonight` — queue research\n"
-                    "`remember [fact]` — save to memory\n"
+                    "`last30 [topic]` — 30-day research brief\n"
+                    "`gemini research [topic]` — Google-grounded research\n"
+                    "`use opus` / `use lm` / `use auto` — switch models\n"
                     "Or just chat naturally!"
                 ), inline=False)
                 await channel.send(embed=embed)
@@ -109,16 +116,26 @@ async def on_message(message: discord.Message):
     if not content:
         return
 
-    logger.info(f"Message from {message.author}: {content[:80]}")
+    channel_id = message.channel.id
+    logger.info(f"Message from {message.author} [ch:{channel_id}]: {content[:80]}")
+
+    # ── Record user turn in conversation history ──────────────────────────────
+    mem_module.add_conversation_turn(channel_id, "user", content)
 
     # Show typing indicator while processing
     async with message.channel.typing():
         try:
-            response_text, embed = await dispatch_command(content)
+            response_text, embed = await dispatch_command(content, channel_id=channel_id)
         except Exception as e:
             logger.error(f"Command dispatch error: {e}", exc_info=True)
             response_text = f"Something went wrong: `{e}`"
             embed = None
+
+    # ── Record bot response in conversation history ───────────────────────────
+    if response_text:
+        # Strip the routing footer before saving to history (cleaner)
+        history_text = response_text.split("\n\n*")[0][:800]
+        mem_module.add_conversation_turn(channel_id, "assistant", history_text)
 
     # Send response
     if embed:
@@ -129,10 +146,11 @@ async def on_message(message: discord.Message):
             await message.channel.send(chunk)
 
 
-async def dispatch_command(message: str) -> tuple:
+async def dispatch_command(message: str, channel_id: int = 0) -> tuple:
     """
     Parse and dispatch a message to the right handler.
     Returns (response_text, embed_dict_or_None).
+    channel_id is passed to general chat so it can include conversation history.
     """
     command, arg = parse_command(message)
 
@@ -180,6 +198,14 @@ async def dispatch_command(message: str) -> tuple:
         text = await handle_gemini_research(arg)
         return text, None
 
+    elif command == "use_model":
+        text = await handle_use_model(arg)
+        return text, None
+
+    elif command == "which_model":
+        text = await handle_which_model()
+        return text, None
+
     elif command == "codex_scaffold":
         text = await handle_codex_scaffold(arg)
         return text, None
@@ -191,9 +217,29 @@ async def dispatch_command(message: str) -> tuple:
         text = await handle_schedule(task, time_str)
         return text, None
 
+    elif command == "work_on":
+        text = await handle_work_on(arg)
+        return text, None
+
+    elif command == "show_context":
+        text = await handle_show_context()
+        return text, None
+
+    elif command == "clear_context":
+        text = await handle_clear_context()
+        return text, None
+
+    elif command == "show_schedule":
+        text = await handle_show_schedule()
+        return text, None
+
+    elif command == "cancel_schedule":
+        text = await handle_cancel_schedule(arg)
+        return text, None
+
     else:
-        # General chat
-        text = await handle_general_chat(message)
+        # General chat — pass channel_id so it has conversation history
+        text = await handle_general_chat(message, channel_id=channel_id)
         return text, None
 
 
@@ -263,8 +309,23 @@ async def _heartbeat_loop():
         lm_models = await lms.list_models() if lm_online else []
         write_heartbeat_state(lm_online, lm_models)
 
-        # Only DM Theodore on the 6-hour interval
+        # Only DM Offline on the 6-hour interval
         await send_heartbeat(bot)
+
+        # ── Drain DM queue (cron scripts deposit messages here) ───────────────
+        try:
+            from src.utils.dm_queue import drain_queue
+            from src.agents.heartbeat import _dm_owner
+            pending = drain_queue()
+            for item in pending:
+                content = item.get("content", "")
+                if content:
+                    # Split into Discord-safe chunks
+                    for chunk in _chunk_message(content):
+                        await _dm_owner(bot, text=chunk)
+                    await asyncio.sleep(0.5)  # small delay between chunks
+        except Exception as e:
+            logger.warning(f"DM queue drain failed: {e}")
 
         await asyncio.sleep(60 * 2)  # Tick every 2 minutes
 

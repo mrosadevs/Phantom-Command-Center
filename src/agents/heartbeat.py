@@ -24,6 +24,27 @@ HEARTBEAT_INTERVAL_MINUTES = 360  # DM every 6 hours
 HEARTBEAT_FILE = ROOT_DIR / "memory" / "heartbeat.json"
 _bot_start_time: datetime = datetime.now()
 
+# Bot reference — set by discord_bot.py on_ready so scheduled DMs can work
+_bot = None
+
+
+def set_bot(bot_instance):
+    """Store the bot instance so schedule_dm can reach it."""
+    global _bot
+    _bot = bot_instance
+
+
+async def schedule_dm(message: str):
+    """
+    Send a DM to Offline on a schedule (called by APScheduler for dynamic jobs).
+    message: the text to send.
+    """
+    if _bot is None:
+        logger.warning("schedule_dm: bot not initialized yet")
+        return
+    await _dm_owner(_bot, text=message)
+    logger.info(f"Scheduled DM sent: {message[:60]}")
+
 
 def write_heartbeat_state(lm_online: bool, lm_models: list):
     """Write current heartbeat state to disk so the dashboard can read it."""

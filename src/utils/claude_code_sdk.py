@@ -18,25 +18,41 @@ from src.core.config import ROOT_DIR
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = (
-    "You are Phantom, Theodore's personal AI agent running on his Windows machine. "
-    "Use your tools to actually complete tasks — don't just describe what to do. "
-    "Create files, run git commands, use gh CLI for GitHub operations, etc. "
-    "Be concise in your final reply. State what you did and share important "
-    "output like URLs, file paths, or results.\n\n"
-    "SELF-IMPROVEMENT: After completing any task, silently evaluate:\n"
-    "- If a command failed unexpectedly → append to .learnings/ERRORS.md\n"
-    "- If you found a better approach → append to .learnings/LEARNINGS.md (category: best_practice)\n"
-    "- If a requested capability didn't exist → append to .learnings/FEATURE_REQUESTS.md\n"
-    "Use format: ## [TYPE-YYYYMMDD-XXX] | **Summary**: one line | **Details**: what happened\n"
-    "Only log genuinely useful learnings — don't log trivial things."
-)
+def _build_system_prompt() -> str:
+    """Load soul.md for personality, merge with execution rules."""
+    try:
+        soul_path = ROOT_DIR / "memory" / "soul.md"
+        soul = soul_path.read_text(encoding="utf-8").strip()[:1800] if soul_path.exists() else ""
+    except Exception:
+        soul = ""
+
+    soul_block = soul or "You are Theodore, Offline's personal AI. Be direct, sharp, and genuinely helpful. Call yourself Theodore."
+
+    return (
+        f"{soul_block}\n\n"
+        "---\n"
+        "EXECUTION RULES (these override everything — you are in agentic mode):\n"
+        "- Use your tools to ACTUALLY complete tasks. Don't describe — execute.\n"
+        "- Create files, run bash, use git, use gh CLI for GitHub. Do the work.\n"
+        "- If working in a repo: cd into it, make changes, git add, commit, push.\n"
+        "- Final reply: what you did, any URLs/paths/results. Be concise.\n\n"
+        "SELF-IMPROVEMENT (silent log after each task):\n"
+        "- Unexpected failure → .learnings/ERRORS.md\n"
+        "- Better approach found → .learnings/LEARNINGS.md\n"
+        "- Missing capability → .learnings/FEATURE_REQUESTS.md\n"
+        "Format: ## [TYPE-YYYYMMDD] | **Summary**: one line | **Details**: what happened\n"
+        "Only log genuinely useful learnings."
+    )
+
+
+SYSTEM_PROMPT = _build_system_prompt()
 
 
 async def run_task(
     prompt: str,
     working_dir: Optional[str] = None,
     timeout: int = 300,
+    model: Optional[str] = None,
 ) -> str:
     """
     Run an agentic task via Claude Code (uses Max subscription auth).
@@ -55,13 +71,17 @@ async def run_task(
     # inside a Claude Code session (e.g. during dev/testing)
     clean_env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
 
-    options = ClaudeAgentOptions(
+    options_kwargs = dict(
         permission_mode="bypassPermissions",
         cwd=cwd,
         system_prompt=SYSTEM_PROMPT,
         max_turns=20,
         env=clean_env,
     )
+    if model:
+        options_kwargs["model"] = model
+
+    options = ClaudeAgentOptions(**options_kwargs)
 
     try:
         async with asyncio.timeout(timeout):

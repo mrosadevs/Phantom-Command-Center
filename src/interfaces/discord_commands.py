@@ -24,6 +24,10 @@ async def handle_status() -> Tuple[str, dict]:
     lm_online = await lms.is_available()
     lm_models = await lms.list_models() if lm_online else []
 
+    # Show working context in status
+    ctx = memory.get_working_context()
+    ctx_detail = f"Focused on: {ctx['name']}" if ctx else "No focus set"
+
     services = {
         "LM Studio": {
             "online": lm_online,
@@ -40,6 +44,10 @@ async def handle_status() -> Tuple[str, dict]:
         "Dashboard": {
             "online": True,
             "detail": "Running at http://localhost:3000"
+        },
+        "Working Context": {
+            "online": bool(ctx),
+            "detail": ctx_detail
         }
     }
 
@@ -132,9 +140,32 @@ async def handle_gemini_research(topic: str) -> str:
     if not topic:
         return "Usage: `gemini research [topic]` — uses Gemini + Google Search for deep research"
     result = await gemini_client.research(topic)
-    from datetime import datetime
     ts = datetime.now().strftime("%b %d, %Y %I:%M %p")
     return f"# Gemini Research: {topic}\n*{ts} • Google Search grounded*\n\n{result}"
+
+
+async def handle_use_model(alias: str) -> str:
+    """Handle 'use [model]' — override the auto-router to lock a specific model."""
+    from src.core.router import set_override
+    return set_override(alias)
+
+
+async def handle_which_model() -> str:
+    """Handle 'which model' / 'what model' — show current override or routing mode."""
+    from src.core.router import get_override
+    override = get_override()
+    if override:
+        return (
+            f"🔒 Locked to **{override['label']}** (`{override['model']}`)\n"
+            f"Say `use auto` to go back to smart routing."
+        )
+    return (
+        "Using **auto-routing** — I pick the best model per task.\n\n"
+        "**Switch with:** `use sonnet` · `use opus` · `use haiku` · `use lm` · `use groq` · `use gemini`\n"
+        "**Shorthand:** `/sonnet` · `/opus` · `/haiku`\n"
+        "**Natural:** `code with opus` · `switch to gemini`\n"
+        "**Reset:** `use auto`"
+    )
 
 
 async def handle_codex_scaffold(description: str) -> str:
@@ -145,57 +176,348 @@ async def handle_codex_scaffold(description: str) -> str:
     return await gemini_client.scaffold_project(description)
 
 
+def _parse_schedule_to_cron(time_str: str) -> str:
+    """
+    Convert natural language time to cron expression.
+    Examples: "every day at 9pm" → "0 21 * * *"
+              "every morning at 8am" → "0 8 * * *"
+              "every friday at 6pm" → "0 18 * * 4"
+              "every weekday at noon" → "0 12 * * 1-5"
+    Returns cron string or raises ValueError if unparseable.
+    """
+    t = time_str.lower().strip()
+
+    # Extract hour from "at Xam/pm" or "at X:YY"
+    import re
+    hour = None
+    minute = 0
+
+    match = re.search(r'at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?', t)
+    if match:
+        hour = int(match.group(1))
+        if match.group(2):
+            minute = int(match.group(2))
+        ampm = match.group(3)
+        if ampm == "pm" and hour != 12:
+            hour += 12
+        elif ampm == "am" and hour == 12:
+            hour = 0
+    elif "noon" in t or "midday" in t:
+        hour = 12
+    elif "midnight" in t:
+        hour = 0
+    elif "morning" in t and hour is None:
+        hour = 8
+    elif "evening" in t and hour is None:
+        hour = 18
+    elif "night" in t and hour is None:
+        hour = 21
+
+    if hour is None:
+        raise ValueError(f"Couldn't parse time from: '{time_str}'")
+
+    # Day-of-week
+    dow = "*"
+    day_map = {
+        "sunday": 0, "monday": 1, "tuesday": 2, "wednesday": 3,
+        "thursday": 4, "friday": 5, "saturday": 6,
+        "sun": 0, "mon": 1, "tue": 2, "wed": 3, "thu": 4, "fri": 5, "sat": 6,
+    }
+    for day_name, day_num in day_map.items():
+        if day_name in t:
+            dow = str(day_num)
+            break
+
+    if "weekday" in t or "weekdays" in t:
+        dow = "1-5"
+    elif "weekend" in t or "weekends" in t:
+        dow = "0,6"
+
+    return f"{minute} {hour} * * {dow}"
+
+
 async def handle_schedule(task: str, time_str: str) -> str:
-    """Handle 'schedule [task] at [time]' — add to scheduler."""
-    # For now, queue it in a schedule requests file for review
-    queue_file = ROOT_DIR / "memory" / "schedule-requests.md"
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
-    with open(queue_file, "a") as f:
-        f.write(f"\n- [{timestamp}] Task: {task} | At: {time_str}")
-    return f"Scheduled: **{task}** at **{time_str}** — I'll take care of it!"
+    """Handle 'schedule [task] at [time]' — actually wire it into APScheduler."""
+    from src.core.scheduler import add_recurring_job
+
+    try:
+        cron = _parse_schedule_to_cron(time_str)
+    except ValueError as e:
+        return (
+            f"Couldn't parse that time: `{time_str}`\n"
+            "Try: `every day at 9pm`, `every friday at 6pm`, `every morning at 8am`"
+        )
+
+    # Build the DM message for this job
+    job_name = task.lower().replace(" ", "_")[:30]
+    dm_message = f"⏰ **Scheduled reminder:** {task}"
+
+    result = add_recurring_job(
+        name=job_name,
+        cron=cron,
+        job_type="dm",
+        payload=dm_message,
+    )
+    return f"{result}\n`{cron}` — I'll DM you: *{task}*"
 
 
-async def handle_general_chat(message: str) -> str:
+async def handle_work_on(target: str) -> str:
+    """
+    Handle 'work on [repo/path]' — set the working context so Claude knows
+    which repo/project to edit, push to, etc. in subsequent messages.
+    """
+    from pathlib import Path
+
+    target = target.strip().strip('"\'')
+
+    # Extract just the repo name/URL — first token only.
+    # If someone types "work on my-repo rename it and add a readme", we only
+    # want "my-repo". Full paths (C:\..., /...) and URLs are kept as-is.
+    if " " in target and not target.startswith(("C:", "D:", "/", "~", "http")):
+        target = target.split()[0]
+
+    if not target:
+        ctx = memory.get_working_context()
+        if ctx:
+            return (
+                f"🎯 Currently focused on: **{ctx['name']}**\n"
+                f"Path: `{ctx.get('path', 'N/A')}`\n"
+                f"GitHub: {ctx.get('github_url', 'N/A')}\n\n"
+                f"Say `clear context` to reset."
+            )
+        return "No working context set. Say `work on [repo name]` to focus on a repo."
+
+    # Detect if it's a full local path (Windows or Unix)
+    if target.startswith(("C:", "D:", "/", "~")):
+        path = Path(target.replace("~", str(Path.home())))
+        name = path.name
+        memory.set_working_context(str(path), name, "local_path")
+        return f"🎯 Working context set: **{name}**\nPath: `{path}`"
+
+    # Otherwise treat as a GitHub repo name under mrosadevs
+    github_url = f"https://github.com/mrosadevs/{target}"
+
+    # Look for it locally in ClaudeCoWork first, then common spots
+    possible_paths = [
+        Path("C:/Users/viole/OneDrive/Documents/ClaudeCoWork") / target,
+        Path("C:/Users/viole/OneDrive/Documents") / target,
+        Path("C:/Users/viole/Documents") / target,
+        Path("C:/Users/viole") / target,
+    ]
+    local_path = next((str(p) for p in possible_paths if p.exists()), "")
+
+    memory.set_working_context(
+        local_path or target,
+        target,
+        "github_repo",
+        github_url,
+    )
+
+    if local_path:
+        return (
+            f"🎯 Working context set: **{target}**\n"
+            f"Local: `{local_path}`\n"
+            f"GitHub: {github_url}\n\n"
+            f"Any edits, commits, or pushes will target this repo."
+        )
+    else:
+        return (
+            f"🎯 Working context set: **{target}**\n"
+            f"GitHub: {github_url}\n"
+            f"*(Not found locally — Claude will clone it if needed)*\n\n"
+            f"Any edits or pushes will target this repo."
+        )
+
+
+async def handle_show_context() -> str:
+    """Show or clear the current working context."""
+    ctx = memory.get_working_context()
+    if not ctx:
+        return (
+            "No working context set.\n\n"
+            "Use `work on [repo name]` to focus on a specific repo.\n"
+            "e.g. `work on color-palette-generator`"
+        )
+    lines = [f"🎯 **Current Focus: {ctx['name']}**"]
+    if ctx.get("path"):
+        lines.append(f"Path: `{ctx['path']}`")
+    if ctx.get("github_url"):
+        lines.append(f"GitHub: {ctx['github_url']}")
+    if ctx.get("set_at"):
+        lines.append(f"Set at: {ctx['set_at'][:16].replace('T', ' ')}")
+    lines.append("\nSay `clear context` to reset.")
+    return "\n".join(lines)
+
+
+async def handle_clear_context() -> str:
+    """Clear the current working context."""
+    ctx = memory.get_working_context()
+    if not ctx:
+        return "No working context to clear."
+    name = ctx.get("name", "unknown")
+    memory.clear_working_context()
+    return f"✅ Cleared working context (was: **{name}**). Back to default (ClaudeCoWork)."
+
+
+async def handle_show_schedule() -> str:
+    """Show all active scheduled jobs (static + dynamic)."""
+    from src.core.scheduler import get_jobs_status, _load_dynamic_jobs
+    jobs = get_jobs_status()
+    if not jobs:
+        return "No scheduled jobs found."
+    lines = ["📅 **Active Schedule:**\n"]
+    for j in jobs:
+        next_run = j.get("next_run", "unknown")
+        if next_run and next_run != "unknown":
+            next_run = next_run[:16].replace("T", " ")
+        lines.append(f"• **{j['name']}** — next: `{next_run}`")
+    dynamic = _load_dynamic_jobs()
+    if dynamic:
+        lines.append(f"\n🔁 **Your custom jobs ({len(dynamic)}):**")
+        for j in dynamic:
+            lines.append(f"• `{j['name']}` — `{j['cron']}` — _{j.get('payload', j.get('script', ''))[:60]}_")
+        lines.append("\nSay `cancel schedule [name]` to remove one.")
+    return "\n".join(lines)
+
+
+async def handle_cancel_schedule(job_name: str) -> str:
+    """Cancel a dynamic scheduled job by name."""
+    from src.core.scheduler import remove_recurring_job
+    return remove_recurring_job(job_name)
+
+
+async def handle_general_chat(message: str, channel_id: int = 0) -> str:
     """
     Handle any general message — route to appropriate model.
+    Includes conversation history + working context in every request
+    so the model always knows what was just discussed and which repo to target.
     Also auto-detects memory-worthy facts and saves them.
     Returns response text with routing info appended.
     """
+    from pathlib import Path
+
     # Get routing decision
     route = await router.route_task(message)
     provider = route["provider"]
     model = route["model"]
     reason = route["reason"]
+    footer_model = route.get("label", model) or model
 
-    # Get memory context for richer responses
-    context = memory.get_full_context()
+    # ── Build context layers ───────────────────────────────────────────────────
+    long_term_ctx = memory.get_full_context()
+    conv_history  = memory.format_conversation_history(channel_id, last_n=10) if channel_id else ""
+    wc            = memory.get_working_context()
 
+    # ── Build working context block for Claude — explicit and actionable ───────
+    if wc:
+        repo_name   = wc.get("name", "unknown")
+        github_url  = wc.get("github_url", "")
+        stored_path = wc.get("path", "")
+
+        # Re-check if the stored path is a real local directory
+        local_path = stored_path if stored_path and Path(stored_path).is_dir() else ""
+
+        # If not local yet, try to find it in common spots
+        if not local_path:
+            for candidate in [
+                Path("C:/Users/viole/OneDrive/Documents/ClaudeCoWork") / repo_name,
+                Path("C:/Users/viole/OneDrive/Documents") / repo_name,
+                Path("C:/Users/viole") / repo_name,
+            ]:
+                if candidate.is_dir():
+                    local_path = str(candidate)
+                    # Update stored path so future calls find it immediately
+                    memory.set_working_context(local_path, repo_name, wc.get("kind", "github_repo"), github_url)
+                    break
+
+        if local_path:
+            cwd_for_claude = local_path
+            wc_block = (
+                f"╔══ WORKING REPO (read this first) ══╗\n"
+                f"  Repo:   {repo_name}\n"
+                f"  Path:   {local_path}   ← your cwd, run ALL commands here\n"
+                f"  GitHub: {github_url}\n"
+                f"╚════════════════════════════════════╝\n"
+                f"Do NOT work in the Phantom-Command-Center directory.\n"
+                f"cd to the path above and make changes there."
+            )
+        else:
+            # Repo not cloned locally — tell Claude to clone it first
+            clone_dest = str(Path("C:/Users/viole/OneDrive/Documents/ClaudeCoWork") / repo_name)
+            cwd_for_claude = None
+            wc_block = (
+                f"╔══ WORKING REPO (read this first) ══╗\n"
+                f"  Repo:   {repo_name}\n"
+                f"  GitHub: {github_url}\n"
+                f"  Not cloned yet — clone to: {clone_dest}\n"
+                f"╚════════════════════════════════════╝\n"
+                f"Step 1: git clone {github_url} \"{clone_dest}\"\n"
+                f"Step 2: cd into it, make the changes requested\n"
+                f"Step 3: git add, commit, push\n"
+                f"Do NOT work in the Phantom-Command-Center directory."
+            )
+    else:
+        cwd_for_claude = None
+        wc_block = "No working context. Default build dir: C:/Users/viole/OneDrive/Documents/ClaudeCoWork/"
+
+    # ── Soul / personality ─────────────────────────────────────────────────────
+    soul = memory.get_soul()
+    soul_block = soul[:2000] if soul else "You are Theodore, Offline's personal AI. Be direct, sharp, and genuinely helpful. Your name is Theodore."
+
+    # ── System prompt (for LM Studio / Groq / Gemini) ─────────────────────────
     system_prompt = (
-        "You are Phantom, Theodore's personal AI agent. You know everything about him "
-        "from the context below. Be helpful, direct, and occasionally proactive.\n\n"
-        "IMPORTANT MEMORY RULE: If Theodore tells you a personal fact about himself "
-        "(birthday, preference, project, goal, interest, habit, relationship, location, etc.), "
-        "you MUST include this exact line at the END of your response (no exceptions):\n"
-        "SAVE_TO_MEMORY: [the fact in one clear sentence]\n\n"
-        "Only include SAVE_TO_MEMORY if there's actually a new fact to save. "
-        "Don't save it for questions, tasks, or things you already know.\n\n"
-        f"--- Theodore's Memory Context ---\n{context[:2000]}"
+        f"{soul_block}\n\n"
+        "---\n"
+        "HARD RULES — breaking any of these is a failure:\n"
+        "- NEVER introduce yourself or explain what you are\n"
+        "- NEVER say 'What can I do for you?' or any variation\n"
+        "- NEVER use 'Certainly!' 'Of course!' 'Great question!' or any corporate filler\n"
+        "- NEVER start with 'I' as the first word\n"
+        "- Just respond directly. Match the energy of the message. Be Phantom.\n\n"
+        "---\n"
+        "MEMORY RULES:\n"
+        "1. If Offline tells you a personal fact (birthday, preference, project, goal, habit, "
+        "relationship, opinion), append at the END of your response:\n"
+        "   SAVE_TO_MEMORY: [the fact in one sentence]\n"
+        "2. If you notice a consistent pattern about Offline's preferences or working style "
+        "that isn't already in your soul/personality, append:\n"
+        "   EVOLVED_TRAIT: [observed trait in one sentence]\n"
+        "Only use these tags for genuinely new information. Not for questions or tasks.\n\n"
+        f"--- Offline's Memory ---\n{long_term_ctx[:1000]}\n\n"
+        f"--- Working Context ---\n{wc_block}\n\n"
+        + (f"--- Recent Conversation ---\n{conv_history}" if conv_history else "")
     )
 
-    # Route to the right provider
+    # ── Claude prompt — soul + working context at the very top ────────────────
+    conv_block = f"\n\n=== RECENT CONVERSATION ===\n{conv_history}" if conv_history else ""
+    claude_prompt = (
+        f"=== WHO YOU ARE ===\n{soul_block}\n\n"
+        f"=== WORKING CONTEXT ===\n{wc_block}"
+        f"{conv_block}\n\n"
+        f"=== TASK FROM THEODORE ===\n{message}\n\n"
+        f"=== BACKGROUND (Offline's memory) ===\n{long_term_ctx[:600]}"
+    )
+
+    # ── Route to provider ──────────────────────────────────────────────────────
     if provider == "lm-studio":
         response = await lm_studio_client.chat(message, system=system_prompt, max_tokens=900)
     elif provider == "groq":
         response = await groq_client.chat(message, system=system_prompt, max_tokens=900)
+    elif provider == "gemini":
+        from src.utils import gemini_client
+        response = await gemini_client.chat(f"{system_prompt}\n\n{message}")
     else:
-        full_prompt = f"[Context about Theodore]\n{context[:1000]}\n\n[Message]\n{message}"
-        response = await claude_code_sdk.run_task(full_prompt)
+        # Claude — set cwd to local repo path if we have one
+        response = await claude_code_sdk.run_task(
+            claude_prompt,
+            model=model,
+            working_dir=cwd_for_claude,
+        )
 
     # Auto-extract and save any memory facts the model flagged
     response, saved_fact = _extract_and_save_memory(response)
 
-    # Append routing info
-    routing_footer = f"\n\n*{model} • {reason}*"
+    routing_footer = f"\n\n*{footer_model} • {reason}*"
     if saved_fact:
         routing_footer += f"\n*💾 Saved to memory: {saved_fact}*"
     return response + routing_footer
@@ -203,20 +525,34 @@ async def handle_general_chat(message: str) -> str:
 
 def _extract_and_save_memory(response: str):
     """
-    Look for SAVE_TO_MEMORY: tag in model response, save it, strip the tag.
+    Look for SAVE_TO_MEMORY: and EVOLVED_TRAIT: tags in model response.
+    Saves facts to about-manuel.md and traits to soul.md Evolved Traits.
     Returns (cleaned_response, saved_fact_or_None).
     """
     import re
+
+    saved = None
+
+    # ── SAVE_TO_MEMORY → about-manuel.md (personal facts) ────────────────────
     match = re.search(r'SAVE_TO_MEMORY:\s*(.+?)(?:\n|$)', response, re.IGNORECASE)
     if match:
         fact = match.group(1).strip()
         if fact:
             memory.add_fact(fact)
             logger.info(f"Auto-saved to memory: {fact}")
-        # Remove the tag from the response
-        cleaned = re.sub(r'\nSAVE_TO_MEMORY:.*?(?:\n|$)', '', response, flags=re.IGNORECASE).strip()
-        return cleaned, fact
-    return response, None
+            saved = fact
+        response = re.sub(r'\nSAVE_TO_MEMORY:.*?(?:\n|$)', '', response, flags=re.IGNORECASE).strip()
+
+    # ── EVOLVED_TRAIT → soul.md Evolved Traits section ───────────────────────
+    trait_match = re.search(r'EVOLVED_TRAIT:\s*(.+?)(?:\n|$)', response, re.IGNORECASE)
+    if trait_match:
+        trait = trait_match.group(1).strip()
+        if trait:
+            memory.append_evolved_trait(trait)
+            logger.info(f"Phantom evolved: {trait}")
+        response = re.sub(r'\nEVOLVED_TRAIT:.*?(?:\n|$)', '', response, flags=re.IGNORECASE).strip()
+
+    return response, saved
 
 
 def parse_command(message: str) -> Tuple[str, str]:
@@ -224,16 +560,19 @@ def parse_command(message: str) -> Tuple[str, str]:
     Parse a natural language message into (command_type, argument).
 
     Returns:
-        ("learn", "https://...") for learn commands
-        ("install_mcp", "brave search") for install commands
-        ("status", "") for status checks
-        ("research", "topic") for research requests
-        ("build", "description") for build requests
-        ("remember", "fact") for remember commands
-        ("forget", "keyword") for forget commands
-        ("what_built", "") for build history queries
-        ("what_researched", "") for research history queries
-        ("general", original_message) for everything else
+        ("learn", "https://...")         for learn commands
+        ("install_mcp", "brave search")  for install commands
+        ("status", "")                   for status checks
+        ("research", "topic")            for research requests
+        ("build", "description")         for build requests
+        ("remember", "fact")             for remember commands
+        ("forget", "keyword")            for forget commands
+        ("what_built", "")               for build history queries
+        ("what_researched", "")          for research history queries
+        ("work_on", "repo/path")         for setting working context
+        ("show_context", "")             for showing working context
+        ("clear_context", "")            for clearing working context
+        ("general", original_message)   for everything else
     """
     msg = message.strip().lower()
 
@@ -274,6 +613,23 @@ def parse_command(message: str) -> Tuple[str, str]:
         topic = message.split(" ", 1)[1].strip() if msg.startswith("last30 ") else message.split(" ", 2)[2].strip()
         return ("last30", topic)
 
+    # /opus /sonnet /haiku /lm /groq /gemini shorthand
+    if msg.startswith("/") and msg[1:].split()[0] in ("opus", "sonnet", "haiku", "lm", "groq", "gemini", "auto"):
+        alias = msg[1:].split()[0]
+        return ("use_model", alias)
+
+    # "use X" — explicit switch
+    if msg.startswith("use "):
+        return ("use_model", message[4:].strip())
+
+    # "code with opus / sonnet / haiku" — natural language switch
+    for alias in ("opus", "sonnet", "haiku", "lm", "groq", "gemini"):
+        if f"with {alias}" in msg or f"switch to {alias}" in msg or f"switch {alias}" in msg:
+            return ("use_model", alias)
+
+    if msg in ("which model", "what model", "what model are you using", "which model are you using", "model?"):
+        return ("which_model", "")
+
     if msg.startswith("gemini research ") or msg.startswith("g research "):
         topic = message.split(" ", 2)[2].strip()
         return ("gemini_research", topic)
@@ -281,5 +637,26 @@ def parse_command(message: str) -> Tuple[str, str]:
     if msg.startswith("codex scaffold ") or msg.startswith("scaffold "):
         desc = message.split(" ", 2)[2].strip() if msg.startswith("codex scaffold ") else message.split(" ", 1)[1].strip()
         return ("codex_scaffold", desc)
+
+    # Working context commands
+    if msg.startswith("work on ") or msg.startswith("focus on ") or msg.startswith("set repo "):
+        # strip the prefix
+        for prefix in ("work on ", "focus on ", "set repo "):
+            if msg.startswith(prefix):
+                return ("work_on", message[len(prefix):].strip())
+
+    if msg in ("context", "what context", "what are we working on", "current context", "what repo"):
+        return ("show_context", "")
+
+    if msg in ("clear context", "reset context", "no context", "unfocus"):
+        return ("clear_context", "")
+
+    # Schedule management
+    if msg in ("my schedule", "schedules", "scheduled jobs", "what's scheduled", "show schedule"):
+        return ("show_schedule", "")
+
+    if msg.startswith("cancel schedule ") or msg.startswith("remove schedule "):
+        job_name = message.split(" ", 2)[2].strip()
+        return ("cancel_schedule", job_name)
 
     return ("general", message)
