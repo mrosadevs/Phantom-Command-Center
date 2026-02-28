@@ -1,0 +1,10 @@
+{
+  "last_heartbeat": "2026-02-28T00:43:51.073473",
+  "start_time": "2026-02-28T00:29:33.825746",
+  "lm_studio_online": true,
+  "lm_models": [
+    "openai/gpt-oss-20b",
+    "text-embedding-nomic-embed-text-v1.5"
+  ],
+  "interval_minutes": 360
+}

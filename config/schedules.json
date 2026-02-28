@@ -1,0 +1,32 @@
+{
+  "tasks": [
+    {
+      "name": "morning_briefing",
+      "script": "scripts/morning_briefing.py",
+      "cron": "0 6 * * *",
+      "description": "Generate and send morning briefing to Discord",
+      "enabled": true
+    },
+    {
+      "name": "memory_sync",
+      "script": "scripts/memory_sync.py",
+      "cron": "0 22 * * *",
+      "description": "Consolidate and sync memory files",
+      "enabled": true
+    },
+    {
+      "name": "nightly_research",
+      "script": "scripts/nightly_research.py",
+      "cron": "0 23 * * *",
+      "description": "Autonomous overnight research on relevant topics",
+      "enabled": true
+    },
+    {
+      "name": "nightly_build",
+      "script": "scripts/nightly_build.py",
+      "cron": "0 2 * * *",
+      "description": "Proactively build tools/apps for Manuel",
+      "enabled": true
+    }
+  ]
+}

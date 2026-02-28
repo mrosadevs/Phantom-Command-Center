@@ -1,0 +1,57 @@
+{
+  "name": "Phantom Command Center",
+  "owner": "Manuel",
+  "github": "mrosadevs",
+  "version": "1.0.0",
+  "models": {
+    "heavy": {
+      "provider": "claude-code",
+      "model": "claude-sonnet-4-6",
+      "use_for": ["complex reasoning", "code generation", "architecture", "multi-step tasks"],
+      "cost": "max-subscription"
+    },
+    "light": {
+      "provider": "lm-studio",
+      "endpoint": "http://localhost:1234/v1",
+      "model": "local-model",
+      "use_for": ["simple Q&A", "formatting", "data cleaning", "routing decisions", "drafts"],
+      "cost": "free"
+    },
+    "vision": {
+      "provider": "groq",
+      "model": "llama-3.2-11b-vision-preview",
+      "use_for": ["image analysis", "screenshot reading"],
+      "cost": "free-tier"
+    },
+    "speech": {
+      "provider": "groq",
+      "model": "whisper-large-v3",
+      "use_for": ["transcription", "voice commands"],
+      "cost": "free-tier"
+    }
+  },
+  "discord": {
+    "bot_token_env": "PHANTOM_DISCORD_TOKEN",
+    "guild_id_env": "PHANTOM_GUILD_ID",
+    "channels": {
+      "briefing": "morning-briefing",
+      "surprises": "overnight-surprises",
+      "research": "research-feed",
+      "commands": "phantom-commands",
+      "alerts": "alerts"
+    }
+  },
+  "schedule": {
+    "morning_briefing": "0 6 * * *",
+    "memory_sync": "0 22 * * *",
+    "nightly_research": "0 23 * * *",
+    "nightly_build": "0 2 * * *"
+  },
+  "dashboard": {
+    "host": "0.0.0.0",
+    "port": 3000
+  },
+  "repos_to_watch": [
+    "mrosadevs/The-Ultimate-AI-Stack"
+  ]
+}

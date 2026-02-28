@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Phantom Command Center</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #111118;
+      --bg2: #18181f;
+      --bg3: #1e1e28;
+      --border: #2a2a3a;
+      --purple: #7b2fbe;
+      --purple-light: #a855f7;
+      --purple-glow: rgba(168,85,247,0.25);
+      --cyan: #00ffcc;
+      --blue: #60a5fa;
+      --red: #ff4466;
+      --text: #e2e8f0;
+      --text-dim: #94a3b8;
+      --text-muted: #475569;
+      --green: #00ff88;
+      --yellow: #fbbf24;
+      --pink: #f472b6;
+    }
+
+    body.light {
+      --bg: #f0f0f8;
+      --bg2: #ffffff;
+      --bg3: #e8e8f4;
+      --border: #c8c8e0;
+      --purple-light: #7b2fbe;
+      --cyan: #00997a;
+      --blue: #2563eb;
+      --text: #0f172a;
+      --text-dim: #475569;
+      --text-muted: #94a3b8;
+      --green: #16a34a;
+    }
+
+    html, body { height: 100%; font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); overflow: hidden; }
+
+    /* ── Canvas BG ── */
+    #bg-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; opacity: 0.4; }
+    body.light #bg-canvas { opacity: 0.08; }
+
+    /* ── Scanlines ── */
+    body::after {
+      content: ''; position: fixed; inset: 0; z-index: 1; pointer-events: none;
+      background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+    }
+
+    /* ── Layout ── */
+    .layout { display: grid; grid-template-columns: 220px 1fr; grid-template-rows: 58px 1fr; height: 100vh; position: relative; z-index: 2; }
+    .topbar { grid-column: 1/-1; display: flex; align-items: center; gap: 14px; padding: 0 24px; background: rgba(15,15,21,0.95); border-bottom: 1px solid var(--border); backdrop-filter: blur(20px); position: relative; overflow: hidden; }
+    .topbar::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, var(--purple-light), var(--cyan), transparent); animation: scan-line 4s linear infinite; }
+    @keyframes scan-line { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+
+    .sidebar { background: rgba(15,15,21,0.95); border-right: 1px solid var(--border); padding: 12px 0; overflow-y: auto; backdrop-filter: blur(20px); }
+    .main { overflow-y: auto; padding: 24px; position: relative; }
+
+    /* ── Logo ── */
+    .logo { font-size: 18px; font-weight: 900; letter-spacing: 2px; position: relative; cursor: default; }
+    .logo .p1 { color: var(--purple-light); text-shadow: 0 0 20px var(--purple-light); }
+    .logo .p2 { color: var(--cyan); text-shadow: 0 0 20px var(--cyan); }
+    .logo:hover .p1 { animation: glitch 0.3s infinite; }
+    @keyframes glitch {
+      0%,100% { text-shadow: 0 0 20px var(--purple-light); transform: translate(0); }
+      20% { text-shadow: -2px 0 var(--cyan), 2px 0 var(--pink); transform: translate(-1px, 1px); }
+      40% { text-shadow: 2px 0 var(--cyan), -2px 0 var(--pink); transform: translate(1px, -1px); }
+      60% { text-shadow: 0 0 20px var(--purple-light); transform: translate(0); }
+    }
+
+    .topbar-sub { font-size: 11px; color: var(--text-muted); letter-spacing: 1px; text-transform: uppercase; }
+    .topbar-status { margin-left: auto; display: flex; gap: 14px; align-items: center; font-size: 13px; color: var(--text-dim); }
+
+    .theme-toggle { background: transparent; border: 1px solid var(--border); color: var(--text-dim); padding: 5px 14px; border-radius: 20px; cursor: pointer; font-size: 12px; transition: all 0.2s; }
+    .theme-toggle:hover { border-color: var(--purple-light); color: var(--purple-light); box-shadow: 0 0 12px var(--purple-glow); }
+
+    /* ── Status dot ── */
+    .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--green); position: relative; }
+    .dot::before { content: ''; position: absolute; inset: -4px; border-radius: 50%; background: var(--green); opacity: 0.3; animation: ring-pulse 2s ease-out infinite; }
+    .dot::after { content: ''; position: absolute; inset: -8px; border-radius: 50%; background: var(--green); opacity: 0.1; animation: ring-pulse 2s ease-out infinite 0.4s; }
+    .dot.red { background: var(--red); }
+    .dot.red::before, .dot.red::after { background: var(--red); animation: none; }
+    @keyframes ring-pulse { 0% { transform: scale(1); opacity: 0.4; } 100% { transform: scale(2.5); opacity: 0; } }
+
+    /* ── Nav ── */
+    .nav-section { font-size: 9px; text-transform: uppercase; letter-spacing: 2px; color: var(--text-muted); padding: 16px 20px 6px; }
+    .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 20px; cursor: pointer; font-size: 13px; color: var(--text-dim); border-left: 2px solid transparent; transition: all 0.2s; position: relative; overflow: hidden; }
+    .nav-item::before { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, var(--purple-glow), transparent); opacity: 0; transition: opacity 0.2s; }
+    .nav-item:hover::before { opacity: 1; }
+    .nav-item:hover { color: var(--text); border-left-color: var(--purple-light); }
+    .nav-item.active { color: var(--purple-light); border-left-color: var(--purple-light); }
+    .nav-item.active::before { opacity: 1; }
+    .nav-icon { font-size: 15px; width: 20px; text-align: center; }
+
+    /* ── Cards ── */
+    .card {
+      background: rgba(15,15,21,0.8);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 16px;
+      backdrop-filter: blur(10px);
+      transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--purple-light), transparent);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .card:hover { transform: translateY(-2px) scale(1.002); box-shadow: 0 8px 30px rgba(168,85,247,0.15); border-color: rgba(168,85,247,0.3); }
+    .card:hover::before { opacity: 1; }
+    .card-title { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text-muted); margin-bottom: 14px; }
+    body.light .card { background: rgba(255,255,255,0.9); }
+
+    /* ── Stats ── */
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; }
+    .stat-card {
+      background: rgba(15,15,21,0.8);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px;
+      cursor: default;
+      transition: all 0.25s;
+      position: relative;
+      overflow: hidden;
+    }
+    .stat-card::after { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at 50% 100%, var(--purple-glow), transparent 60%); opacity: 0; transition: opacity 0.3s; }
+    .stat-card:hover { transform: translateY(-4px); box-shadow: 0 12px 30px rgba(168,85,247,0.2); border-color: var(--purple-light); }
+    .stat-card:hover::after { opacity: 1; }
+    .stat-value { font-size: 32px; font-weight: 800; background: linear-gradient(135deg, var(--purple-light), var(--cyan)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; line-height: 1; }
+    .stat-label { font-size: 11px; color: var(--text-dim); margin-top: 6px; text-transform: uppercase; letter-spacing: 1px; }
+    body.light .stat-card { background: white; }
+
+    /* ── Services ── */
+    .services-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+    .service-card { background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 14px; display: flex; align-items: center; gap: 12px; transition: all 0.2s; cursor: default; }
+    .service-card:hover { border-color: var(--cyan); box-shadow: 0 0 16px rgba(0,255,204,0.1); transform: scale(1.02); }
+    .service-info .name { font-size: 13px; font-weight: 600; }
+    .service-info .detail { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+
+    /* ── Section Header ── */
+    .section-header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+    .section-header h1 { font-size: 22px; font-weight: 800; background: linear-gradient(135deg, var(--text), var(--purple-light)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .badge { font-size: 10px; background: var(--purple-glow); color: var(--purple-light); border: 1px solid var(--purple); padding: 3px 10px; border-radius: 20px; animation: badge-glow 3s ease-in-out infinite; }
+    @keyframes badge-glow { 0%,100% { box-shadow: 0 0 0 transparent; } 50% { box-shadow: 0 0 10px var(--purple-glow); } }
+
+    /* ── Routing bars ── */
+    .route-bar-wrap { display: flex; flex-direction: column; gap: 10px; }
+    .route-bar-item { display: flex; align-items: center; gap: 12px; }
+    .route-bar-label { font-size: 12px; color: var(--text-dim); width: 100px; }
+    .route-bar-track { flex: 1; height: 8px; background: var(--bg3); border-radius: 4px; overflow: hidden; }
+    .route-bar-fill { height: 100%; border-radius: 4px; transition: width 1s cubic-bezier(0.34,1.56,0.64,1); width: 0; }
+    .route-bar-fill.purple { background: linear-gradient(90deg, var(--purple), var(--purple-light)); box-shadow: 0 0 8px var(--purple-glow); }
+    .route-bar-fill.cyan { background: linear-gradient(90deg, #00997a, var(--cyan)); box-shadow: 0 0 8px rgba(0,255,204,0.3); }
+    .route-bar-fill.blue { background: linear-gradient(90deg, #2563eb, var(--blue)); box-shadow: 0 0 8px rgba(96,165,250,0.3); }
+    .route-bar-pct { font-size: 13px; font-weight: 700; color: var(--text); width: 36px; text-align: right; }
+
+    /* ── Surprises ── */
+    .surprise-card { background: rgba(15,15,21,0.8); border: 1px solid var(--border); border-radius: 12px; padding: 18px; margin-bottom: 12px; display: flex; gap: 16px; align-items: flex-start; transition: all 0.25s; cursor: default; }
+    .surprise-card:hover { border-color: var(--cyan); box-shadow: 0 0 24px rgba(0,255,204,0.1); transform: translateX(4px); }
+    .surprise-icon { font-size: 28px; flex-shrink: 0; animation: float 3s ease-in-out infinite; }
+    @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+    .surprise-name { font-size: 16px; font-weight: 700; color: var(--cyan); text-shadow: 0 0 12px rgba(0,255,204,0.4); }
+    .surprise-desc { font-size: 13px; color: var(--text-dim); margin-top: 4px; }
+    .surprise-meta { font-size: 11px; color: var(--text-muted); margin-top: 8px; font-family: monospace; }
+    .file-chip { font-size: 11px; background: var(--bg3); border: 1px solid var(--border); padding: 2px 8px; border-radius: 4px; font-family: monospace; color: var(--cyan); transition: all 0.15s; }
+    .file-chip:hover { border-color: var(--cyan); box-shadow: 0 0 8px rgba(0,255,204,0.2); }
+    body.light .surprise-card { background: white; }
+
+    /* ── Research ── */
+    .research-card { background: rgba(15,15,21,0.8); border: 1px solid var(--border); border-radius: 12px; padding: 18px; margin-bottom: 12px; cursor: pointer; transition: all 0.25s; }
+    .research-card:hover { border-color: var(--blue); box-shadow: 0 0 20px rgba(96,165,250,0.1); transform: translateX(4px); }
+    .research-title { font-size: 15px; font-weight: 700; color: var(--blue); }
+    .research-body { font-size: 13px; color: var(--text-dim); margin-top: 8px; line-height: 1.6; }
+    .research-expand { display: none; margin-top: 12px; font-size: 13px; color: var(--text); line-height: 1.7; border-top: 1px solid var(--border); padding-top: 12px; }
+    .research-card.open .research-expand { display: block; animation: slide-down 0.3s ease; }
+    @keyframes slide-down { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+    body.light .research-card { background: white; }
+
+    /* ── Heartbeat card special ── */
+    .hb-ring { width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; position: relative; flex-shrink: 0; }
+    .hb-ring.online { background: rgba(0,255,136,0.1); border: 2px solid var(--green); animation: hb-pulse 1.5s ease-in-out infinite; }
+    .hb-ring.offline { background: rgba(255,68,102,0.1); border: 2px solid var(--red); }
+    @keyframes hb-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(0,255,136,0.4); } 50% { box-shadow: 0 0 0 12px rgba(0,255,136,0); } }
+
+    /* ── Chat ── */
+    .chat-container { display: flex; flex-direction: column; height: calc(100vh - 180px); border-radius: 12px; overflow: hidden; border: 1px solid var(--border); background: rgba(15,15,21,0.8); }
+    .chat-messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+    .message { max-width: 80%; padding: 12px 16px; border-radius: 12px; font-size: 14px; line-height: 1.6; animation: msg-in 0.3s ease; }
+    @keyframes msg-in { from { opacity: 0; transform: translateY(8px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    .message.user { align-self: flex-end; background: linear-gradient(135deg, var(--purple), var(--purple-light)); color: white; border-radius: 12px 12px 4px 12px; box-shadow: 0 4px 16px var(--purple-glow); }
+    .message.assistant { align-self: flex-start; background: var(--bg3); border: 1px solid var(--border); border-radius: 12px 12px 12px 4px; }
+    .message .provider-badge { font-size: 10px; color: var(--text-muted); margin-top: 6px; font-style: italic; }
+    .chat-input-area { display: flex; gap: 10px; padding: 14px; background: var(--bg3); border-top: 1px solid var(--border); }
+    .chat-input { flex: 1; background: var(--bg2); border: 1px solid var(--border); color: var(--text); padding: 10px 14px; border-radius: 8px; font-size: 14px; outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
+    .chat-input:focus { border-color: var(--purple-light); box-shadow: 0 0 0 3px var(--purple-glow); }
+    .send-btn { background: linear-gradient(135deg, var(--purple), var(--purple-light)); color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; transition: all 0.2s; }
+    .send-btn:hover { transform: scale(1.04); box-shadow: 0 4px 16px var(--purple-glow); }
+    .send-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    body.light .chat-container { background: white; }
+
+    /* ── Memory ── */
+    .memory-tabs { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+    .mem-tab { padding: 6px 14px; border-radius: 8px; font-size: 12px; cursor: pointer; background: var(--bg2); border: 1px solid var(--border); color: var(--text-dim); transition: all 0.2s; }
+    .mem-tab:hover { border-color: var(--purple-light); color: var(--purple-light); }
+    .mem-tab.active { background: var(--purple); border-color: var(--purple-light); color: white; box-shadow: 0 0 12px var(--purple-glow); }
+    .memory-editor { width: 100%; min-height: 380px; background: var(--bg3); border: 1px solid var(--border); color: var(--text); padding: 16px; border-radius: 10px; font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 13px; line-height: 1.7; resize: vertical; outline: none; transition: border-color 0.2s; }
+    .memory-editor:focus { border-color: var(--purple-light); box-shadow: 0 0 0 3px var(--purple-glow); }
+    .save-btn { margin-top: 12px; background: linear-gradient(135deg, #00997a, var(--cyan)); color: #000; border: none; padding: 9px 22px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 700; transition: all 0.2s; }
+    .save-btn:hover { transform: scale(1.04); box-shadow: 0 4px 16px rgba(0,255,204,0.3); }
+
+    /* ── Schedule ── */
+    .schedule-table { width: 100%; border-collapse: collapse; }
+    .schedule-table th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text-muted); padding: 8px 14px; border-bottom: 1px solid var(--border); }
+    .schedule-table td { padding: 12px 14px; border-bottom: 1px solid var(--border); font-size: 13px; transition: background 0.15s; }
+    .schedule-table tr:hover td { background: rgba(168,85,247,0.05); }
+    .schedule-cron { font-family: monospace; color: var(--cyan); font-size: 12px; }
+    .status-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; }
+    .status-dot.ok { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    .status-dot.warn { background: var(--yellow); }
+
+    /* ── Routing log ── */
+    .route-entry { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; transition: background 0.15s; cursor: default; border-radius: 4px; }
+    .route-entry:hover { background: rgba(168,85,247,0.05); }
+    .provider-tag { font-size: 10px; font-weight: 700; padding: 3px 10px; border-radius: 20px; letter-spacing: 0.5px; white-space: nowrap; }
+    .provider-tag.claude-code { background: rgba(168,85,247,0.2); color: var(--purple-light); border: 1px solid rgba(168,85,247,0.4); }
+    .provider-tag.lm-studio { background: rgba(0,255,204,0.1); color: var(--cyan); border: 1px solid rgba(0,255,204,0.3); }
+    .provider-tag.groq { background: rgba(96,165,250,0.1); color: var(--blue); border: 1px solid rgba(96,165,250,0.3); }
+    .route-task { flex: 1; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .route-reason { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+
+    /* ── Page transitions ── */
+    .page { display: none; animation: page-in 0.3s ease; }
+    .page.active { display: block; }
+    @keyframes page-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* ── Ripple ── */
+    .ripple { position: fixed; border-radius: 50%; background: rgba(168,85,247,0.3); transform: scale(0); animation: ripple-out 0.6s ease-out forwards; pointer-events: none; z-index: 9999; }
+    @keyframes ripple-out { to { transform: scale(4); opacity: 0; } }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--purple); }
+
+    /* ── Misc ── */
+    .loading { color: var(--text-muted); font-size: 13px; padding: 20px; text-align: center; }
+    .empty-state { text-align: center; padding: 40px; color: var(--text-muted); }
+    .empty-state .icon { font-size: 40px; margin-bottom: 12px; display: block; animation: float 3s ease-in-out infinite; }
+
+    /* ── Bottom Nav (mobile only) ── */
+    .bottom-nav { display: none; }
+
+    /* ── Mobile Responsive ── */
+    @media (max-width: 768px) {
+      html, body { overflow: auto; height: auto; }
+
+      .layout {
+        grid-template-columns: 1fr;
+        grid-template-rows: 52px 1fr;
+        height: 100dvh;
+      }
+
+      .topbar { padding: 0 14px; }
+      .topbar-sub { display: none; }
+      .logo { font-size: 15px; letter-spacing: 1px; }
+      .topbar-status { gap: 10px; }
+
+      .sidebar { display: none; }
+
+      .main { padding: 14px 12px 80px; overflow-y: auto; }
+
+      /* Bottom nav */
+      .bottom-nav {
+        display: flex;
+        position: fixed;
+        bottom: 0; left: 0; right: 0;
+        z-index: 200;
+        background: rgba(13,13,20,0.97);
+        border-top: 1px solid var(--border);
+        backdrop-filter: blur(20px);
+        padding: 4px 0 env(safe-area-inset-bottom, 6px);
+      }
+      .bn-item {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
+        padding: 6px 2px;
+        cursor: pointer;
+        color: var(--text-muted);
+        font-size: 9px;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        border: none;
+        background: none;
+        transition: color 0.2s;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .bn-item .bn-icon { font-size: 20px; display: block; }
+      .bn-item.active { color: var(--purple-light); }
+
+      /* Card/grid tweaks */
+      .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+      .services-grid { grid-template-columns: repeat(2, 1fr); }
+      .stat-value { font-size: 26px; }
+
+      /* Chat */
+      .chat-container { height: calc(100dvh - 170px); }
+      .message { max-width: 92%; font-size: 13px; }
+
+      /* Memory */
+      .memory-editor { min-height: 220px; font-size: 12px; }
+      .memory-tabs { gap: 4px; }
+      .mem-tab { padding: 5px 10px; font-size: 11px; }
+
+      /* Tables */
+      .schedule-table { font-size: 12px; }
+      .schedule-table th, .schedule-table td { padding: 8px 8px; }
+
+      /* Section header */
+      .section-header h1 { font-size: 18px; }
+
+      /* Routing log */
+      .route-task { max-width: 140px; }
+      .route-reason { display: none; }
+
+      /* Heartbeat layout */
+      #heartbeat-body { flex-wrap: wrap; gap: 14px; }
+    }
+  </style>
+</head>
+<body>
+<canvas id="bg-canvas"></canvas>
+
+<div class="layout">
+  <!-- Topbar -->
+  <header class="topbar">
+    <span class="logo"><span class="p1">🔮 PHANTOM</span> <span class="p2">CMD</span></span>
+    <span class="topbar-sub">Theodore's AI Agent</span>
+    <div class="topbar-status">
+      <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()">☀️ Light</button>
+      <div class="dot" id="bot-dot"></div>
+      <span id="bot-status" style="font-size:12px;">Connecting...</span>
+    </div>
+  </header>
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="nav-section">Main</div>
+    <div class="nav-item active" onclick="showPage('overview',this)"><span class="nav-icon">🏠</span> Overview</div>
+    <div class="nav-item" onclick="showPage('surprises',this)"><span class="nav-icon">✨</span> Surprises</div>
+    <div class="nav-item" onclick="showPage('research',this)"><span class="nav-icon">🔬</span> Research</div>
+    <div class="nav-section">System</div>
+    <div class="nav-item" onclick="showPage('schedule',this)"><span class="nav-icon">⏰</span> Schedule</div>
+    <div class="nav-item" onclick="showPage('memory',this)"><span class="nav-icon">🧠</span> Memory</div>
+    <div class="nav-item" onclick="showPage('chat',this)"><span class="nav-icon">💬</span> Chat</div>
+    <div class="nav-item" onclick="showPage('routing',this)"><span class="nav-icon">🔀</span> Routing Log</div>
+  </nav>
+
+  <!-- Main -->
+  <main class="main">
+
+    <!-- Overview -->
+    <div id="page-overview" class="page active">
+      <div class="section-header">
+        <h1>Overview</h1>
+        <span class="badge" id="overview-time">--:--</span>
+      </div>
+      <div class="stats-grid" id="stats-grid"><div class="loading">Loading...</div></div>
+      <div class="card">
+        <div class="card-title">Service Status</div>
+        <div class="services-grid" id="services-grid"><div class="loading">Checking...</div></div>
+      </div>
+      <div id="heartbeat-card" class="card">
+        <div class="card-title">💓 Heartbeat</div>
+        <div id="heartbeat-body" style="display:flex;align-items:center;gap:20px;flex-wrap:wrap;"><div class="loading">Checking...</div></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Model Routing (last 50 tasks)</div>
+        <div id="routing-chart" class="route-bar-wrap"></div>
+      </div>
+    </div>
+
+    <!-- Surprises -->
+    <div id="page-surprises" class="page">
+      <div class="section-header"><h1>Overnight Surprises</h1><span class="badge" id="surprises-count">0 built</span></div>
+      <div id="surprises-list"><div class="loading">Loading...</div></div>
+    </div>
+
+    <!-- Research -->
+    <div id="page-research" class="page">
+      <div class="section-header"><h1>Research Feed</h1></div>
+      <div id="research-list"><div class="loading">Loading...</div></div>
+    </div>
+
+    <!-- Schedule -->
+    <div id="page-schedule" class="page">
+      <div class="section-header"><h1>Schedule</h1></div>
+      <div class="card">
+        <table class="schedule-table">
+          <thead><tr><th>Task</th><th>Cron</th><th>Next Run</th><th>Status</th></tr></thead>
+          <tbody id="schedule-body"><tr><td colspan="4" class="loading">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Memory -->
+    <div id="page-memory" class="page">
+      <div class="section-header"><h1>Memory Bank</h1></div>
+      <div class="memory-tabs">
+        <div class="mem-tab active" onclick="loadMemoryFile('about_manuel',this)">About Theodore</div>
+        <div class="mem-tab" onclick="loadMemoryFile('projects',this)">Projects</div>
+        <div class="mem-tab" onclick="loadMemoryFile('skills',this)">Skills</div>
+        <div class="mem-tab" onclick="loadMemoryFile('research_log',this)">Research Log</div>
+        <div class="mem-tab" onclick="loadMemoryFile('surprises_log',this)">Surprises Log</div>
+      </div>
+      <textarea class="memory-editor" id="memory-editor" placeholder="Loading..."></textarea>
+      <button class="save-btn" onclick="saveMemory()">💾 Save Changes</button>
+      <span id="save-status" style="margin-left:12px;font-size:12px;color:var(--text-dim);"></span>
+    </div>
+
+    <!-- Chat -->
+    <div id="page-chat" class="page">
+      <div class="section-header"><h1>Chat with Phantom</h1><span class="badge">auto-routed</span></div>
+      <div class="chat-container">
+        <div class="chat-messages" id="chat-messages">
+          <div class="message assistant">Hey Theodore — I'm live. Ask me anything or give me a task. I'll route it to the right model.<div class="provider-badge">phantom • ready</div></div>
+        </div>
+        <div class="chat-input-area">
+          <input class="chat-input" id="chat-input" placeholder="Ask anything..." onkeydown="if(event.key==='Enter')sendChat()" />
+          <button class="send-btn" id="send-btn" onclick="sendChat()">Send →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Routing Log -->
+    <div id="page-routing" class="page">
+      <div class="section-header"><h1>Routing Log</h1><span class="badge">last 20</span></div>
+      <div class="card" id="routing-log-container"><div class="loading">Loading...</div></div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Mobile Bottom Navigation -->
+<nav class="bottom-nav" id="bottom-nav">
+  <button class="bn-item active" onclick="showPage('overview',this,true)"><span class="bn-icon">🏠</span>Home</button>
+  <button class="bn-item" onclick="showPage('surprises',this,true)"><span class="bn-icon">✨</span>Builds</button>
+  <button class="bn-item" onclick="showPage('research',this,true)"><span class="bn-icon">🔬</span>Research</button>
+  <button class="bn-item" onclick="showPage('chat',this,true)"><span class="bn-icon">💬</span>Chat</button>
+  <button class="bn-item" onclick="showPage('memory',this,true)"><span class="bn-icon">🧠</span>Memory</button>
+  <button class="bn-item" onclick="showPage('routing',this,true)"><span class="bn-icon">🔀</span>Routes</button>
+</nav>
+
+<script>
+const API = window.location.origin + '/api';
+let currentMemoryFile = 'about_manuel';
+
+// ── Particle Background ──
+(function() {
+  const canvas = document.getElementById('bg-canvas');
+  const ctx = canvas.getContext('2d');
+  let W, H, particles = [];
+  const COUNT = 80;
+
+  function resize() {
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  for (let i = 0; i < COUNT; i++) {
+    particles.push({
+      x: Math.random() * 1920, y: Math.random() * 1080,
+      vx: (Math.random() - 0.5) * 0.4, vy: (Math.random() - 0.5) * 0.4,
+      r: Math.random() * 1.5 + 0.5, a: Math.random()
+    });
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    // Draw grid lines
+    ctx.strokeStyle = 'rgba(168,85,247,0.06)';
+    ctx.lineWidth = 1;
+    for (let x = 0; x < W; x += 60) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+    for (let y = 0; y < H; y += 60) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+
+    // Draw particles + connections
+    particles.forEach((p, i) => {
+      p.x += p.vx; p.y += p.vy;
+      if (p.x < 0 || p.x > W) p.vx *= -1;
+      if (p.y < 0 || p.y > H) p.vy *= -1;
+
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+      ctx.fillStyle = `rgba(168,85,247,${p.a * 0.8})`;
+      ctx.fill();
+
+      for (let j = i+1; j < particles.length; j++) {
+        const q = particles[j];
+        const d = Math.hypot(p.x-q.x, p.y-q.y);
+        if (d < 120) {
+          ctx.beginPath();
+          ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y);
+          ctx.strokeStyle = `rgba(168,85,247,${(1-d/120)*0.12})`;
+          ctx.stroke();
+        }
+      }
+    });
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+// ── Ripple on click ──
+document.addEventListener('click', e => {
+  if (navigator.vibrate) navigator.vibrate(8);
+  const r = document.createElement('div');
+  r.className = 'ripple';
+  const size = 40;
+  r.style.cssText = `width:${size}px;height:${size}px;left:${e.clientX-size/2}px;top:${e.clientY-size/2}px`;
+  document.body.appendChild(r);
+  setTimeout(() => r.remove(), 600);
+});
+
+// ── Theme ──
+function toggleTheme() {
+  const isLight = document.body.classList.toggle('light');
+  document.getElementById('theme-toggle').textContent = isLight ? '🌙 Dark' : '☀️ Light';
+  localStorage.setItem('phantom-theme', isLight ? 'light' : 'dark');
+}
+if (localStorage.getItem('phantom-theme') === 'light') {
+  document.body.classList.add('light');
+  document.getElementById('theme-toggle').textContent = '🌙 Dark';
+}
+
+// ── Page Navigation ──
+function showPage(name, el, isMobile=false) {
+  if (navigator.vibrate) navigator.vibrate(10);
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  // Sync both navbars
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('.bn-item').forEach(n => n.classList.remove('active'));
+  if (el) el.classList.add('active');
+  if (name === 'overview') loadOverview();
+  if (name === 'surprises') loadSurprises();
+  if (name === 'research') loadResearch();
+  if (name === 'schedule') loadSchedule();
+  if (name === 'memory') loadMemoryFile('about_manuel', document.querySelector('.mem-tab'));
+  if (name === 'routing') loadRoutingLog();
+}
+
+// ── Animated counter ──
+function animateCount(el, target) {
+  const duration = 800;
+  const start = performance.now();
+  const from = parseInt(el.textContent) || 0;
+  function step(now) {
+    const progress = Math.min((now - start) / duration, 1);
+    const ease = 1 - Math.pow(1 - progress, 3);
+    el.textContent = Math.round(from + (target - from) * ease);
+    if (progress < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+// ── Overview ──
+async function loadOverview() {
+  document.getElementById('overview-time').textContent = new Date().toLocaleTimeString();
+  try {
+    const data = await fetch(API + '/overview').then(r => r.json());
+
+    // Stats with animated counters
+    const stats = [
+      { value: data.stats.surprises_built, label: 'Apps Built' },
+      { value: data.stats.research_reports, label: 'Research Reports' },
+      { value: data.stats.memory_items, label: 'Memory Items' },
+      { value: data.routing.total || 0, label: 'Tasks Routed' },
+    ];
+    const sg = document.getElementById('stats-grid');
+    sg.innerHTML = stats.map(s => `
+      <div class="stat-card">
+        <div class="stat-value" data-target="${s.value}">0</div>
+        <div class="stat-label">${s.label}</div>
+      </div>
+    `).join('');
+    sg.querySelectorAll('[data-target]').forEach(el => {
+      animateCount(el, parseInt(el.dataset.target));
+    });
+
+    // Services
+    const svcs = data.services;
+    document.getElementById('services-grid').innerHTML = Object.entries({
+      'LM Studio': { online: svcs.lm_studio.online, detail: svcs.lm_studio.models?.[0] || 'No model loaded' },
+      'Claude Code': { online: true, detail: svcs.claude_code.model },
+      'Groq': { online: true, detail: 'Free tier' },
+      'Discord': { online: true, detail: 'DMs + #phantom-commands' },
+    }).map(([name, info]) => `
+      <div class="service-card">
+        <div class="dot ${info.online ? '' : 'red'}"></div>
+        <div class="service-info">
+          <div class="name">${name}</div>
+          <div class="detail">${info.detail}</div>
+        </div>
+      </div>
+    `).join('');
+
+    // Routing bars
+    const r = data.routing;
+    const total = Math.max(r.total || 1, 1);
+    const bars = [
+      { label: 'LM Studio', pct: Math.round(r.lm_studio/total*100), cls: 'cyan' },
+      { label: 'Claude Code', pct: Math.round(r.claude_code/total*100), cls: 'purple' },
+      { label: 'Groq', pct: Math.round(r.groq/total*100), cls: 'blue' },
+    ];
+    document.getElementById('routing-chart').innerHTML = bars.map(b => `
+      <div class="route-bar-item">
+        <span class="route-bar-label">${b.label}</span>
+        <div class="route-bar-track"><div class="route-bar-fill ${b.cls}" style="width:0%" data-pct="${b.pct}"></div></div>
+        <span class="route-bar-pct">${b.pct}%</span>
+      </div>
+    `).join('');
+    setTimeout(() => {
+      document.querySelectorAll('.route-bar-fill[data-pct]').forEach(el => {
+        el.style.width = el.dataset.pct + '%';
+      });
+    }, 100);
+
+    document.getElementById('bot-dot').className = 'dot';
+    document.getElementById('bot-status').textContent = 'Online';
+  } catch {
+    document.getElementById('bot-dot').className = 'dot red';
+    document.getElementById('bot-status').textContent = 'API offline';
+  }
+}
+
+// ── Surprises ──
+async function loadSurprises() {
+  const list = document.getElementById('surprises-list');
+  list.innerHTML = '<div class="loading">Loading...</div>';
+  try {
+    const { surprises } = await fetch(API + '/surprises').then(r => r.json());
+    document.getElementById('surprises-count').textContent = surprises.length + ' built';
+    if (!surprises.length) { list.innerHTML = '<div class="empty-state"><span class="icon">✨</span>No surprises yet — check back after 2 AM!</div>'; return; }
+    list.innerHTML = surprises.map(s => `
+      <div class="surprise-card">
+        <div class="surprise-icon">✨</div>
+        <div>
+          <div class="surprise-name">${s.name}</div>
+          <div class="surprise-desc">${s.description || 'No description'}</div>
+          <div class="surprise-meta">📁 ${s.path} • ${new Date(s.created).toLocaleDateString()}</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">${(s.files||[]).map(f=>`<span class="file-chip">${f}</span>`).join('')}</div>
+        </div>
+      </div>
+    `).join('');
+  } catch { list.innerHTML = '<div class="loading">Failed to load</div>'; }
+}
+
+// ── Research ──
+async function loadResearch() {
+  const list = document.getElementById('research-list');
+  list.innerHTML = '<div class="loading">Loading...</div>';
+  try {
+    const { entries } = await fetch(API + '/research').then(r => r.json());
+    if (!entries.length) { list.innerHTML = '<div class="empty-state"><span class="icon">🔬</span>No research yet — first run at 11 PM</div>'; return; }
+    list.innerHTML = entries.map(e => `
+      <div class="research-card" onclick="this.classList.toggle('open')">
+        <div class="research-title">${e.title}</div>
+        <div class="research-body">${e.summary}</div>
+        <div class="research-expand">${e.full}</div>
+      </div>
+    `).join('');
+  } catch { list.innerHTML = '<div class="loading">Failed to load</div>'; }
+}
+
+// ── Schedule ──
+async function loadSchedule() {
+  try {
+    const data = await fetch(API + '/schedule').then(r => r.json());
+    const jobMap = {};
+    (data.jobs||[]).forEach(j => jobMap[j.id] = j);
+    document.getElementById('schedule-body').innerHTML = (data.definitions||[]).map(def => {
+      const job = jobMap[def.name] || {};
+      const nextRun = job.next_run ? new Date(job.next_run).toLocaleString() : 'Not scheduled';
+      return `<tr>
+        <td>${def.description||def.name}</td>
+        <td class="schedule-cron">${def.cron}</td>
+        <td>${nextRun}</td>
+        <td><span class="status-dot ${def.enabled?'ok':'warn'}"></span>${def.enabled?'Enabled':'Disabled'}</td>
+      </tr>`;
+    }).join('');
+  } catch { document.getElementById('schedule-body').innerHTML = '<tr><td colspan="4">Failed to load</td></tr>'; }
+}
+
+// ── Memory ──
+async function loadMemoryFile(fileKey, tabEl) {
+  currentMemoryFile = fileKey;
+  document.querySelectorAll('.mem-tab').forEach(t => t.classList.remove('active'));
+  if (tabEl) tabEl.classList.add('active');
+  const editor = document.getElementById('memory-editor');
+  editor.value = 'Loading...';
+  try {
+    const data = await fetch(API + '/memory').then(r => r.json());
+    editor.value = data[fileKey] || '';
+  } catch { editor.value = 'Failed to load'; }
+}
+
+async function saveMemory() {
+  const status = document.getElementById('save-status');
+  status.textContent = 'Saving...';
+  try {
+    await fetch(API + '/memory', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ file: currentMemoryFile, content: document.getElementById('memory-editor').value }) });
+    status.textContent = '✓ Saved';
+    if (navigator.vibrate) navigator.vibrate([20,10,20]);
+    setTimeout(() => status.textContent = '', 2000);
+  } catch { status.textContent = 'Failed'; }
+}
+
+// ── Chat ──
+async function sendChat() {
+  const input = document.getElementById('chat-input');
+  const btn = document.getElementById('send-btn');
+  const msg = input.value.trim();
+  if (!msg) return;
+  input.value = ''; btn.disabled = true;
+  addChatMessage(msg, 'user');
+  if (navigator.vibrate) navigator.vibrate(12);
+  // Typing indicator
+  const typing = document.createElement('div');
+  typing.className = 'message assistant'; typing.id = 'typing';
+  typing.innerHTML = '<span style="opacity:0.5;animation:float 1s ease-in-out infinite">···</span>';
+  document.getElementById('chat-messages').appendChild(typing);
+  document.getElementById('chat-messages').scrollTop = 999999;
+  try {
+    const data = await fetch(API + '/chat', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({message: msg}) }).then(r => r.json());
+    document.getElementById('typing')?.remove();
+    addChatMessage(data.response, 'assistant', `${data.model} • ${data.reason}`);
+  } catch {
+    document.getElementById('typing')?.remove();
+    addChatMessage('Cannot reach Phantom API — is the server running?', 'assistant');
+  }
+  btn.disabled = false; input.focus();
+}
+
+function addChatMessage(text, role, providerInfo='') {
+  const container = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = 'message ' + role;
+  div.innerHTML = text.replace(/\n/g,'<br>') + (providerInfo ? `<div class="provider-badge">${providerInfo}</div>` : '');
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+// ── Routing Log ──
+async function loadRoutingLog() {
+  const container = document.getElementById('routing-log-container');
+  try {
+    const { entries } = await fetch(API + '/routing-log?limit=20').then(r => r.json());
+    if (!entries.length) { container.innerHTML = '<div class="empty-state">No routing decisions yet</div>'; return; }
+    container.innerHTML = entries.map(e => `
+      <div class="route-entry">
+        <span class="provider-tag ${(e.provider||'').replace('_','-')}">${e.provider}</span>
+        <span class="route-task">${e.task_preview||''}</span>
+        <span class="route-reason">${e.reason||''}</span>
+      </div>
+    `).join('');
+  } catch { container.innerHTML = '<div class="loading">Failed to load</div>'; }
+}
+
+// ── Heartbeat ──
+async function loadHeartbeat() {
+  const card = document.getElementById('heartbeat-card');
+  const body = document.getElementById('heartbeat-body');
+  try {
+    const hb = await fetch(API + '/heartbeat').then(r => r.json());
+    if (!hb.last_heartbeat) {
+      card.style.borderColor = 'var(--red)';
+      body.innerHTML = `<div class="hb-ring offline">💀</div><div><div style="color:var(--red);font-weight:700">No heartbeat recorded</div><div style="font-size:12px;color:var(--text-muted);margin-top:4px">Bot has not started yet</div></div>`;
+      return;
+    }
+    if (hb.online) {
+      card.style.borderColor = 'var(--green)';
+      body.innerHTML = `
+        <div class="hb-ring online">💓</div>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <div style="font-weight:700;color:var(--green);font-size:15px">Online</div>
+          <div style="font-size:12px;color:var(--text-dim)">Last pulse: <strong>${hb.last_heartbeat_ago}</strong></div>
+          <div style="font-size:12px;color:var(--text-dim)">Uptime: <strong>${hb.uptime}</strong></div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;margin-left:auto">
+          <div style="font-size:12px;color:var(--text-dim)">LM Studio: <strong style="color:${hb.lm_studio_online?'var(--green)':'var(--red)'}">${hb.lm_studio_online?(hb.lm_models[0]||'online'):'offline'}</strong></div>
+          <div style="font-size:12px;color:var(--text-dim)">Groq: <strong style="color:var(--green)">connected</strong></div>
+        </div>
+      `;
+    } else {
+      card.style.borderColor = 'var(--red)';
+      body.innerHTML = `
+        <div class="hb-ring offline">💀</div>
+        <div>
+          <div style="color:var(--red);font-weight:700;font-size:15px">OFFLINE</div>
+          <div style="font-size:12px;color:var(--text-dim);margin-top:4px">Last seen: <strong style="color:var(--red)">${hb.last_heartbeat_ago}</strong></div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Bot may have crashed or been stopped</div>
+        </div>
+      `;
+    }
+  } catch {
+    card.style.borderColor = 'var(--red)';
+    body.innerHTML = `<div class="hb-ring offline">⚠️</div><div style="color:var(--red)">Cannot reach dashboard API</div>`;
+  }
+}
+
+// ── Init ──
+loadOverview();
+loadHeartbeat();
+setInterval(loadOverview, 30000);
+setInterval(loadHeartbeat, 30000);
+setInterval(() => { document.getElementById('overview-time').textContent = new Date().toLocaleTimeString(); }, 1000);
+</script>
+</body>
+</html>

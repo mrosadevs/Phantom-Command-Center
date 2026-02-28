@@ -1,0 +1,39 @@
+{
+  "routing_rules": [
+    {
+      "name": "code_generation",
+      "keywords": ["write code", "build", "implement", "create a function", "debug", "fix bug", "refactor", "script", "tell claude", "ask claude", "have claude", "code a", "make me a", "create a", "github", "repo", "push it", "deploy", "git page", "pages", "html", "css", "javascript", "python script", "app", "website"],
+      "provider": "claude-code",
+      "reason": "Complex code generation requires Claude's reasoning"
+    },
+    {
+      "name": "architecture",
+      "keywords": ["design", "architect", "structure", "system", "diagram", "plan", "how should", "best approach"],
+      "provider": "claude-code",
+      "reason": "Architectural decisions require deep reasoning"
+    },
+    {
+      "name": "simple_qa",
+      "keywords": ["what is", "explain", "define", "tell me about", "summarize", "list"],
+      "provider": "lm-studio",
+      "reason": "Simple Q&A handled locally for free"
+    },
+    {
+      "name": "formatting",
+      "keywords": ["format", "clean up", "rewrite", "rephrase", "improve", "polish"],
+      "provider": "lm-studio",
+      "reason": "Formatting tasks are lightweight"
+    },
+    {
+      "name": "vision",
+      "keywords": ["image", "screenshot", "picture", "photo", "look at", "describe this"],
+      "provider": "groq",
+      "reason": "Vision tasks routed to Groq"
+    }
+  ],
+  "thresholds": {
+    "max_tokens_for_light": 500,
+    "complexity_score_for_heavy": 5,
+    "default_provider": "lm-studio"
+  }
+}

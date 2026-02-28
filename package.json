@@ -1,0 +1,13 @@
+{
+  "name": "phantom-command-center",
+  "version": "1.0.0",
+  "description": "Phantom Command Center — Manuel's personal AI agent system",
+  "scripts": {
+    "start": "python src/interfaces/discord_bot.py & python src/dashboard/server.py",
+    "dashboard": "python src/dashboard/server.py",
+    "bot": "python src/interfaces/discord_bot.py",
+    "setup": "bash scripts/setup.sh"
+  },
+  "author": "mrosadevs",
+  "license": "MIT"
+}

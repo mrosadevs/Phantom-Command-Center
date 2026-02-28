@@ -1,0 +1,40 @@
+{
+  "known_servers": {
+    "brave search": {
+      "package": "@anthropic/mcp-server-brave-search",
+      "env_keys": ["BRAVE_API_KEY"],
+      "description": "Web search via Brave Search API"
+    },
+    "github": {
+      "package": "@modelcontextprotocol/server-github",
+      "env_keys": ["GITHUB_TOKEN"],
+      "description": "GitHub repo access and management"
+    },
+    "filesystem": {
+      "package": "@modelcontextprotocol/server-filesystem",
+      "env_keys": [],
+      "description": "Local filesystem access"
+    },
+    "sqlite": {
+      "package": "@modelcontextprotocol/server-sqlite",
+      "env_keys": [],
+      "description": "SQLite database queries"
+    },
+    "google calendar": {
+      "package": "@anthropic/mcp-server-google-calendar",
+      "env_keys": ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"],
+      "description": "Google Calendar management"
+    },
+    "gmail": {
+      "package": "@anthropic/mcp-server-gmail",
+      "env_keys": ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"],
+      "description": "Gmail access and management"
+    },
+    "discord": {
+      "package": "discord-mcp",
+      "env_keys": ["DISCORD_BOT_TOKEN"],
+      "description": "Discord integration"
+    }
+  },
+  "installed": []
+}
