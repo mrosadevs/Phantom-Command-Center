@@ -2,30 +2,16 @@
   "tasks": [
     {
       "name": "morning_debrief",
-      "script": "scripts/morning_debrief.py",
+      "script": "scripts/morning_briefing.py",
       "cron": "0 8 * * *",
-      "description": "Comprehensive morning briefing: overnight recap, news, weather, skills — 8AM EST",
-      "enabled": true
-    },
-    {
-      "name": "morning_debrief_test",
-      "script": "scripts/morning_debrief.py",
-      "cron": "20 2 * * *",
-      "description": "Morning debrief TEST run at 2:20AM EST — remove after confirming",
+      "description": "Morning briefing: news, weather, overnight recap — 8AM EST",
       "enabled": true
     },
     {
       "name": "evening_debrief",
       "script": "scripts/evening_debrief.py",
       "cron": "0 22 * * *",
-      "description": "Evening debrief: day recap, suggestions, repo scan, overnight plan — 10PM EST",
-      "enabled": true
-    },
-    {
-      "name": "evening_debrief_test",
-      "script": "scripts/evening_debrief.py",
-      "cron": "23 2 * * *",
-      "description": "Evening debrief TEST run at 2:23AM EST — remove after confirming",
+      "description": "Evening debrief: day recap, repo scan, overnight plan — 10PM EST",
       "enabled": true
     },
     {
@@ -46,7 +32,7 @@
       "name": "nightly_build",
       "script": "scripts/nightly_build.py",
       "cron": "0 3 * * *",
-      "description": "Proactively build tools/apps for Offline — 3AM EST",
+      "description": "Proactively build tools/apps overnight — 3AM EST",
       "enabled": true
     }
   ]

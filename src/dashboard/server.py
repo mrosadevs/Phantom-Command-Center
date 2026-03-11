@@ -25,9 +25,10 @@ from pydantic import BaseModel
 ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT))
 
+from datetime import timedelta
+
 from src.core import memory, router
 from src.core.config import CONFIG, ROOT_DIR, SURPRISES_DIR, MEMORY_DIR
-from apscheduler.triggers.cron import CronTrigger
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("phantom.dashboard")
@@ -135,29 +136,36 @@ async def get_surprises():
 
 
 def _next_run_from_cron(cron_expr: str) -> Optional[str]:
-    """Compute the next fire time from a cron string without a running scheduler."""
+    """
+    Compute next fire time for simple daily cron patterns (min hour * * *).
+    Avoids APScheduler timezone issues by using plain datetime arithmetic.
+    """
     try:
         parts = cron_expr.strip().split()
-        trigger = CronTrigger(
-            minute=parts[0], hour=parts[1],
-            day=parts[2], month=parts[3], day_of_week=parts[4],
-        )
-        next_dt = trigger.get_next_fire_time(None, datetime.now())
-        if next_dt:
-            return next_dt.strftime("%b %d %I:%M %p")
+        minute = int(parts[0])
+        hour   = int(parts[1])
+        # Only handles daily patterns — good enough for all our jobs
+        now = datetime.now()
+        candidate = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        if candidate <= now:
+            candidate += timedelta(days=1)
+        # Show "Today 8:00 AM" or "Tomorrow 3:00 AM" for clarity
+        if candidate.date() == now.date():
+            prefix = "Today"
+        else:
+            prefix = "Tomorrow"
+        return f"{prefix} {candidate.strftime('%I:%M %p')}"
     except Exception:
-        pass
-    return None
+        return None
 
 
 @app.get("/api/schedule")
 async def get_schedule():
-    """Get scheduled tasks and their next run times (computed from cron expressions)."""
+    """Get scheduled tasks and their next run times."""
     from src.core.config import load_schedules
     schedules_config = load_schedules()
     tasks = schedules_config.get("tasks", [])
 
-    # Compute next_run from cron for each task — works without a live scheduler
     jobs = []
     for t in tasks:
         jobs.append({
@@ -167,9 +175,20 @@ async def get_schedule():
             "enabled":  t.get("enabled", True),
         })
 
+    # Inject the proactive heartbeat as a virtual entry (it's an asyncio loop, not a cron)
+    heartbeat_virtual = {
+        "name":        "proactive_heartbeat",
+        "script":      "",
+        "cron":        "*/30 * * * *",
+        "description": "Proactive think cycle: reads HEARTBEAT.md, DMs only if needed — Every 30m",
+        "enabled":     True,
+        "virtual":     True,
+    }
+    tasks_with_heartbeat = [heartbeat_virtual] + tasks
+
     return {
         "jobs": jobs,
-        "definitions": tasks,
+        "definitions": tasks_with_heartbeat,
     }
 
 

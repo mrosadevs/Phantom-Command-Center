@@ -1115,12 +1115,16 @@ async function loadSchedule() {
     (data.jobs||[]).forEach(j => jobMap[j.id] = j);
     document.getElementById('schedule-body').innerHTML = (data.definitions||[]).map(def => {
       const job = jobMap[def.name] || {};
-      const nextRun = job.next_run || 'Not scheduled';
+      const isVirtual = def.virtual === true;
+      const cronDisplay = def.cron === '*/30 * * * *' ? 'Every 30 min' : def.cron;
+      const nextRun = isVirtual ? 'Running (background loop)' : (job.next_run || 'Not scheduled');
+      const statusClass = isVirtual ? 'ok' : (def.enabled ? 'ok' : 'warn');
+      const statusText  = isVirtual ? 'Active' : (def.enabled ? 'Enabled' : 'Disabled');
       return `<tr>
         <td>${def.description||def.name}</td>
-        <td class="schedule-cron">${def.cron}</td>
+        <td class="schedule-cron">${cronDisplay}</td>
         <td>${nextRun}</td>
-        <td><span class="status-dot ${def.enabled?'ok':'warn'}"></span>${def.enabled?'Enabled':'Disabled'}</td>
+        <td><span class="status-dot ${statusClass}"></span>${statusText}</td>
       </tr>`;
     }).join('');
   } catch { document.getElementById('schedule-body').innerHTML = '<tr><td colspan="4">Failed to load</td></tr>'; }
