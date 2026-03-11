@@ -9,7 +9,7 @@ import logging
 from datetime import datetime
 
 from src.core import memory, router
-from src.core.config import CONFIG
+from src.core.config import CONFIG, ROOT_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -32,31 +32,35 @@ async def process_request(request: str, source: str = "discord") -> dict:
     actions = []
 
     # Execute based on routing
+    # Load soul.md personality + Theodore's context for every provider
+    soul_file = ROOT_DIR / "memory" / "soul.md"
+    soul = soul_file.read_text(encoding="utf-8").strip()[:1200] if soul_file.exists() else ""
+    context = memory.get_full_context()
+    base_system = (
+        f"{soul}\n\n---\nContext about Theodore:\n{context[:800]}"
+        if soul else
+        f"You are Theodore, Phantom's AI personality. Be direct, sharp, and genuinely helpful.\n\nContext:\n{context[:1000]}"
+    )
+
     response = ""
     if route["provider"] == "lm-studio":
         from src.utils import lm_studio_client
-        context = memory.get_full_context()
-        system = f"You are Phantom, Theodore's personal AI. Context:\n{context[:1000]}"
-        response = await lm_studio_client.chat(request, system=system)
+        response = await lm_studio_client.chat(request, system=base_system)
         actions.append("routed_to_lm_studio")
 
     elif route["provider"] == "claude-code":
         from src.utils import claude_code_sdk
-        context = memory.get_full_context()
         full_prompt = f"Context about Theodore:\n{context[:800]}\n\nTask:\n{request}"
         response = await claude_code_sdk.run_task(full_prompt)
         actions.append("routed_to_claude_code")
 
     elif route["provider"] == "groq":
         from src.utils import groq_client
-        context = memory.get_full_context()
-        system = f"You are Phantom, Theodore's personal AI. Context:\n{context[:1000]}"
-        response = await groq_client.chat(request, system=system)
+        response = await groq_client.chat(request, system=base_system)
         actions.append("routed_to_groq")
 
     elif route["provider"] == "gemini":
         from src.utils import gemini_client
-        context = memory.get_full_context()
         full_prompt = f"Context about Theodore:\n{context[:800]}\n\nMessage:\n{request}"
         response = await gemini_client.chat(full_prompt)
         actions.append("routed_to_gemini")

@@ -196,12 +196,21 @@
 
     /* ── Chat ── */
     .chat-container { display: flex; flex-direction: column; height: calc(100vh - 180px); border-radius: 12px; overflow: hidden; border: 1px solid var(--border); background: rgba(15,15,21,0.8); }
-    .chat-messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
-    .message { max-width: 80%; padding: 12px 16px; border-radius: 12px; font-size: 14px; line-height: 1.6; animation: msg-in 0.3s ease; }
-    @keyframes msg-in { from { opacity: 0; transform: translateY(8px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    .chat-messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; justify-content: flex-end; gap: 12px; min-height: 0; }
+    .chat-messages-inner { display: flex; flex-direction: column; gap: 12px; }
+    .message { max-width: 80%; padding: 12px 16px; border-radius: 12px; font-size: 14px; line-height: 1.6; animation: msg-in 0.25s ease; }
+    @keyframes msg-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
     .message.user { align-self: flex-end; background: linear-gradient(135deg, var(--purple), var(--purple-light)); color: white; border-radius: 12px 12px 4px 12px; box-shadow: 0 4px 16px var(--purple-glow); }
     .message.assistant { align-self: flex-start; background: var(--bg3); border: 1px solid var(--border); border-radius: 12px 12px 12px 4px; }
     .message .provider-badge { font-size: 10px; color: var(--text-muted); margin-top: 6px; font-style: italic; }
+    .message p { margin: 0 0 6px 0; } .message p:last-child { margin-bottom: 0; }
+    .message code { background: rgba(0,0,0,0.3); padding: 1px 5px; border-radius: 4px; font-family: monospace; font-size: 12px; }
+    .message pre { background: rgba(0,0,0,0.4); padding: 10px; border-radius: 8px; overflow-x: auto; font-size: 12px; margin: 8px 0; }
+    .message ul, .message ol { margin: 6px 0 6px 18px; padding: 0; }
+    .message strong { color: inherit; font-weight: 700; }
+    .quick-chips { display: flex; gap: 8px; padding: 10px 14px 0; flex-wrap: wrap; }
+    .quick-chip { background: var(--bg2); border: 1px solid var(--border); color: var(--text-dim); padding: 5px 12px; border-radius: 20px; font-size: 12px; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+    .quick-chip:hover { border-color: var(--purple-light); color: var(--purple-light); background: rgba(168,85,247,0.08); }
     .chat-input-area { display: flex; gap: 10px; padding: 14px; background: var(--bg3); border-top: 1px solid var(--border); }
     .chat-input { flex: 1; background: var(--bg2); border: 1px solid var(--border); color: var(--text); padding: 10px 14px; border-radius: 8px; font-size: 14px; outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
     .chat-input:focus { border-color: var(--purple-light); box-shadow: 0 0 0 3px var(--purple-glow); }
@@ -424,6 +433,7 @@
       #heartbeat-body { flex-wrap: wrap; gap: 14px; }
     }
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
 <canvas id="bg-canvas"></canvas>
@@ -526,7 +536,16 @@
       <div class="section-header"><h1>Chat with Phantom</h1><span class="badge">auto-routed</span></div>
       <div class="chat-container">
         <div class="chat-messages" id="chat-messages">
-          <div class="message assistant">Hey Offline — I'm live. Ask me anything or give me a task. I'll route it to the right model.<div class="provider-badge">phantom • ready</div></div>
+          <div class="chat-messages-inner" id="chat-messages-inner">
+            <div class="message assistant">Hey Offline — I'm live. Ask me anything or give me a task. I'll route it to the right model.<div class="provider-badge">phantom • ready</div></div>
+          </div>
+        </div>
+        <div class="quick-chips">
+          <span class="quick-chip" onclick="sendQuick('status')">status</span>
+          <span class="quick-chip" onclick="sendQuick('what did you build?')">what did you build?</span>
+          <span class="quick-chip" onclick="sendQuick('what did you research?')">what did you research?</span>
+          <span class="quick-chip" onclick="sendQuick('morning debrief')">morning debrief</span>
+          <span class="quick-chip" onclick="sendQuick('show schedule')">show schedule</span>
         </div>
         <div class="chat-input-area">
           <input class="chat-input" id="chat-input" placeholder="Ask anything..." onkeydown="if(event.key==='Enter')sendChat()" />
@@ -1155,38 +1174,60 @@ async function saveMemory() {
 }
 
 // ── Chat ──
+function sendQuick(text) {
+  document.getElementById('chat-input').value = text;
+  sendChat();
+}
+
 async function sendChat() {
   const input = document.getElementById('chat-input');
-  const btn = document.getElementById('send-btn');
-  const msg = input.value.trim();
+  const btn   = document.getElementById('send-btn');
+  const msg   = input.value.trim();
   if (!msg) return;
   input.value = ''; btn.disabled = true;
   addChatMessage(msg, 'user');
   if (navigator.vibrate) navigator.vibrate(12);
+
   // Typing indicator
+  const inner  = document.getElementById('chat-messages-inner');
   const typing = document.createElement('div');
   typing.className = 'message assistant'; typing.id = 'typing';
   typing.innerHTML = '<span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>';
-  document.getElementById('chat-messages').appendChild(typing);
+  inner.appendChild(typing);
   document.getElementById('chat-messages').scrollTop = 999999;
+
   try {
-    const data = await fetch(API + '/chat', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({message: msg}) }).then(r => r.json());
+    const data = await fetch(API + '/chat', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({message: msg})
+    }).then(r => r.json());
     document.getElementById('typing')?.remove();
-    addChatMessage(data.response, 'assistant', `${data.model} • ${data.reason}`);
+    const badge = [data.model, data.reason].filter(Boolean).join(' • ');
+    addChatMessage(data.response, 'assistant', badge);
   } catch {
     document.getElementById('typing')?.remove();
-    addChatMessage('Cannot reach Phantom API — is the server running?', 'assistant');
+    addChatMessage('Cannot reach Phantom API — is the dashboard server running?', 'assistant');
   }
   btn.disabled = false; input.focus();
 }
 
-function addChatMessage(text, role, providerInfo='') {
-  const container = document.getElementById('chat-messages');
+function addChatMessage(text, role, providerInfo = '') {
+  const inner = document.getElementById('chat-messages-inner');
+  const scroller = document.getElementById('chat-messages');
   const div = document.createElement('div');
   div.className = 'message ' + role;
-  div.innerHTML = text.replace(/\n/g,'<br>') + (providerInfo ? `<div class="provider-badge">${providerInfo}</div>` : '');
-  container.appendChild(div);
-  container.scrollTop = container.scrollHeight;
+
+  // Render markdown for assistant messages, escape HTML for user messages
+  let content;
+  if (role === 'assistant' && typeof marked !== 'undefined') {
+    content = marked.parse(text || '');
+  } else {
+    content = (text || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+  }
+  div.innerHTML = content + (providerInfo ? `<div class="provider-badge">${providerInfo}</div>` : '');
+  inner.appendChild(div);
+  scroller.scrollTop = scroller.scrollHeight;
 }
 
 // ── Routing Log ──
