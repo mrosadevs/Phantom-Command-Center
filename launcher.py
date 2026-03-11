@@ -322,12 +322,14 @@ class PhantomLauncher(ctk.CTk):
 
     def _stop_all(self):
         self._log("Stopping services...")
+
+        # 1. Kill any processes the launcher spawned this session
         for name, proc in list(self._procs.items()):
             if proc and proc.poll() is None:
                 try:
                     proc.terminate()
                     proc.wait(timeout=6)
-                    self._log(f"{name} stopped.")
+                    self._log(f"{name} stopped (PID {proc.pid}).")
                 except Exception:
                     try:
                         proc.kill()
@@ -336,6 +338,29 @@ class PhantomLauncher(ctk.CTk):
                         self._log(f"{name} kill error: {e}")
         self._procs = {k: None for k in self._procs}
 
+        # 2. Sweep for orphaned processes (started outside this launcher session)
+        targets = {
+            "discord_bot.py": "Discord Bot",
+            "server.py":      "Dashboard",
+        }
+        for script, label in targets.items():
+            try:
+                result = subprocess.run(
+                    ["wmic", "process", "where", f'CommandLine like "%{script}%"',
+                     "get", "ProcessId", "/format:value"],
+                    capture_output=True, text=True, timeout=5
+                )
+                for line in result.stdout.splitlines():
+                    line = line.strip()
+                    if line.startswith("ProcessId="):
+                        pid_str = line.split("=", 1)[1].strip()
+                        if pid_str.isdigit() and int(pid_str) != os.getpid():
+                            subprocess.run(["taskkill", "/F", "/PID", pid_str],
+                                           capture_output=True)
+                            self._log(f"{label} orphan killed (PID {pid_str}).")
+            except Exception as e:
+                self._log(f"Sweep error for {label}: {e}")
+
     def _shutdown_all(self):
         self._stop_all()
         self._log("All services offline.")
@@ -343,7 +368,8 @@ class PhantomLauncher(ctk.CTk):
     def _reboot_all(self):
         self._log("Rebooting...")
         self._stop_all()
-        time.sleep(2)
+        self._log("Waiting for ports to clear...")
+        time.sleep(4)
         self._start_all()
         self._log("Reboot complete.")
 
