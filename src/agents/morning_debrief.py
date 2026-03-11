@@ -115,7 +115,7 @@ async def _search_news(category: dict) -> List[Dict]:
 
 
 async def _get_overnight_summary() -> str:
-    """Pull what was built/researched overnight from memory files."""
+    """Pull what was built/researched/branched overnight from memory files."""
     from src.core import memory
 
     lines = []
@@ -123,19 +123,46 @@ async def _get_overnight_summary() -> str:
     # Check surprises log (overnight builds)
     surprises = memory.read_memory("surprises-log.md")
     if surprises.strip():
-        # Get only the last entry (most recent build)
         entries = [e for e in surprises.split("##") if e.strip()]
         if entries:
             last = entries[-1].strip()[:400]
             lines.append(f"**Built overnight:**\n{last}")
 
-    # Check research log (last entry from tonight)
+    # Check research log
     research = memory.read_memory("research-log.md")
     if research.strip():
         entries = [e for e in research.split("##") if e.strip()]
         if entries:
             last = entries[-1].strip()[:400]
             lines.append(f"**Researched overnight:**\n{last}")
+
+    # Check pending branches pushed overnight
+    pending_prs_file = ROOT / "memory" / "pending-prs.md"
+    if pending_prs_file.exists():
+        content = pending_prs_file.read_text(encoding="utf-8").strip()
+        entries = [e for e in content.split("##") if e.strip() and not e.strip().startswith("#")]
+        if entries:
+            # Only show branches from the last 24 hours
+            from datetime import timedelta
+            cutoff = datetime.now() - timedelta(hours=24)
+            recent = []
+            for entry in entries:
+                # Extract timestamp from "## [YYYY-MM-DD HH:MM] Name"
+                import re
+                m = re.search(r'\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2})\]', entry)
+                if m:
+                    try:
+                        ts = datetime.strptime(m.group(1), "%Y-%m-%d %H:%M")
+                        if ts >= cutoff:
+                            recent.append(entry.strip()[:350])
+                    except ValueError:
+                        pass
+            if recent:
+                branches_text = "\n\n".join(recent)
+                lines.append(
+                    f"**Branches pushed — ready for your review:**\n{branches_text}\n\n"
+                    f"_Reply `git checkout [branch]` or open a PR when ready._"
+                )
 
     if not lines:
         return "Nothing logged yet — I'll have more for you after the overnight runs kick in."

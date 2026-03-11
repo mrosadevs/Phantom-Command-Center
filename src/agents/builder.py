@@ -14,6 +14,7 @@ Also handles on-demand builds: "build me [description]"
 
 import logging
 import re
+import subprocess
 from datetime import datetime
 from pathlib import Path
 
@@ -26,7 +27,8 @@ logger = logging.getLogger(__name__)
 
 # All Claude-built projects go here — on-demand and overnight surprises
 CLAUDE_WORK_DIR = Path("C:/Users/viole/OneDrive/Documents/ClaudeCoWork")
-SURPRISES_DIR = CLAUDE_WORK_DIR / "surprises"
+SURPRISES_DIR   = CLAUDE_WORK_DIR / "surprises"
+PENDING_PRS_FILE = ROOT_DIR / "memory" / "pending-prs.md"
 
 
 async def run_nightly_build():
@@ -53,17 +55,19 @@ async def run_nightly_build():
     # Step 2: Ask LM Studio to propose something to build
     proposal_prompt = (
         f"You are Phantom, Theodore's AI agent. Based on everything you know about him, "
-        f"propose ONE specific, buildable tool, app, or automation that would make his life easier.\n\n"
+        f"propose ONE specific, buildable tool, app, or improvement that would make his life easier.\n\n"
         f"--- Theodore's Context ---\n{context[:1500]}\n\n"
         f"--- His Repos ---\n{repo_summary}\n\n"
         f"Rules:\n"
-        f"- It must be buildable in one coding session (not a massive project)\n"
+        f"- It must be completable in one coding session (not a massive project)\n"
         f"- It must be genuinely useful based on his actual situation\n"
         f"- It should NOT duplicate something that clearly already exists\n"
-        f"- Consider his accounting portal, AI stack guide, and developer workflow\n\n"
+        f"- If improving an existing repo, set target_repo to 'owner/repo-name' exactly as shown above\n"
+        f"- If building something brand new (no target repo), set target_repo to null\n\n"
         f"Output JSON:\n"
         f'{{"name": "Tool Name", "description": "What it does", "why": "Why Theodore needs this", '
-        f'"build_instructions": "Detailed instructions for building it", "type": "webapp|script|cli|api"}}'
+        f'"build_instructions": "Detailed instructions", "type": "webapp|script|cli|api|improvement", '
+        f'"target_repo": "owner/repo-name or null"}}'
     )
 
     proposal_json = await lm_studio_client.chat(
@@ -123,34 +127,144 @@ async def build_on_demand(description: str) -> str:
 
 
 async def _build_surprise(proposal: dict) -> str:
-    """Build the proposed tool using Claude Code."""
-    name = proposal.get("name", "unnamed-tool")
-    instructions = proposal.get("build_instructions", proposal.get("description", ""))
+    """Build the proposed tool or repo improvement using Claude Code."""
+    target_repo = proposal.get("target_repo")
 
-    timestamp = datetime.now().strftime("%Y-%m-%d")
-    safe_name = _slugify(name)
-    output_dir = SURPRISES_DIR / f"{timestamp}-{safe_name}"
+    # Route: repo improvement → branch flow, new tool → surprises dir
+    if target_repo and target_repo != "null" and "/" in target_repo:
+        return await _build_repo_improvement(proposal, target_repo)
+
+    # New standalone tool
+    name         = proposal.get("name", "unnamed-tool")
+    instructions = proposal.get("build_instructions", proposal.get("description", ""))
+    timestamp    = datetime.now().strftime("%Y-%m-%d")
+    safe_name    = _slugify(name)
+    output_dir   = SURPRISES_DIR / f"{timestamp}-{safe_name}"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     full_instructions = (
         f"Build: {name}\n\n"
         f"Description: {proposal.get('description', '')}\n\n"
         f"Build Instructions: {instructions}\n\n"
-        f"Create a complete, working implementation with all necessary files. "
-        f"Include a README.md explaining what was built and how to use it."
+        f"Create a complete, working implementation. Include a README.md explaining what was built."
     )
 
     logger.info(f"Building surprise: {name} in {output_dir}")
     result = await claude_code_sdk.build_project(full_instructions, str(output_dir))
 
-    # Log to memory
     memory.log_surprise(
         name=name,
         description=proposal.get("description", ""),
         path=str(output_dir.relative_to(ROOT_DIR))
     )
+    return result
+
+
+async def _build_repo_improvement(proposal: dict, target_repo: str) -> str:
+    """
+    Build an improvement to an existing repo on a new branch.
+    Pushes phantom/YYYY-MM-DD-slug to origin and logs to pending-prs.md.
+    """
+    repo_name  = target_repo.split("/")[-1]
+    repo_path  = CLAUDE_WORK_DIR / repo_name
+    name       = proposal.get("name", "improvement")
+    description = proposal.get("description", "")
+    instructions = proposal.get("build_instructions", description)
+
+    if not repo_path.exists():
+        logger.warning(f"Repo not found locally: {repo_path}")
+        return f"[Repo {repo_name} not found at {repo_path}]"
+
+    timestamp  = datetime.now().strftime("%Y-%m-%d")
+    branch     = f"phantom/{timestamp}-{_slugify(name)}"
+
+    # Create the branch
+    try:
+        subprocess.run(
+            ["git", "-C", str(repo_path), "checkout", "-b", branch],
+            check=True, capture_output=True, text=True
+        )
+        logger.info(f"Created branch: {branch} in {repo_name}")
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Branch creation failed: {e.stderr}")
+        return f"[Git branch failed: {e.stderr}]"
+
+    # Ask Claude to make the changes (no commit/push — we handle that)
+    build_prompt = (
+        f"Implement this improvement to the repo at {repo_path}:\n\n"
+        f"Improvement: {name}\n"
+        f"Description: {description}\n\n"
+        f"Instructions: {instructions}\n\n"
+        f"IMPORTANT: Make only the file changes needed. "
+        f"Do NOT run git commit or git push — the build system handles that."
+    )
+
+    logger.info(f"Building repo improvement: {name} in {repo_path}")
+    result = await claude_code_sdk.run_task(build_prompt, working_dir=str(repo_path), timeout=600)
+
+    # Commit and push the branch
+    try:
+        subprocess.run(["git", "-C", str(repo_path), "add", "-A"], check=True, capture_output=True)
+        subprocess.run(
+            ["git", "-C", str(repo_path), "commit", "-m", f"phantom: {name}\n\n{description[:200]}"],
+            check=True, capture_output=True, text=True
+        )
+        subprocess.run(
+            ["git", "-C", str(repo_path), "push", "origin", branch],
+            check=True, capture_output=True, text=True
+        )
+        logger.info(f"Pushed branch {branch} to {target_repo}")
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Git push failed: {e.stderr}")
+        # Return to main/master so next run isn't stuck on the branch
+        subprocess.run(["git", "-C", str(repo_path), "checkout", "master"],
+                       capture_output=True)
+        subprocess.run(["git", "-C", str(repo_path), "checkout", "main"],
+                       capture_output=True)
+        return f"[Built but push failed: {e.stderr[:200]}]"
+
+    # Return to default branch
+    for default in ["main", "master"]:
+        res = subprocess.run(["git", "-C", str(repo_path), "checkout", default],
+                             capture_output=True)
+        if res.returncode == 0:
+            break
+
+    # Log to pending-prs.md so morning debrief picks it up
+    _log_pending_pr(
+        repo=target_repo,
+        branch=branch,
+        name=name,
+        description=description,
+        why=proposal.get("why", "")
+    )
+
+    memory.log_surprise(
+        name=name,
+        description=f"[Repo improvement] {target_repo} → branch `{branch}`",
+        path=f"{repo_name}/{branch}"
+    )
 
     return result
+
+
+def _log_pending_pr(repo: str, branch: str, name: str, description: str, why: str):
+    """Append a pending branch to memory/pending-prs.md for the morning debrief."""
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+    entry = (
+        f"\n## [{timestamp}] {name}\n"
+        f"- **Repo:** `{repo}`\n"
+        f"- **Branch:** `{branch}`\n"
+        f"- **What:** {description}\n"
+        f"- **Why:** {why}\n"
+        f"- **Status:** Pending review\n"
+    )
+    PENDING_PRS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    if not PENDING_PRS_FILE.exists():
+        PENDING_PRS_FILE.write_text("# Pending Phantom Branches\n", encoding="utf-8")
+    with open(PENDING_PRS_FILE, "a", encoding="utf-8") as f:
+        f.write(entry)
+    logger.info(f"Logged pending PR: {branch}")
 
 
 async def _evaluate_proposal(proposal: dict) -> bool:
