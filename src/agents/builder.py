@@ -13,7 +13,6 @@ Also handles on-demand builds: "build me [description]"
 """
 
 import logging
-import os
 import re
 from datetime import datetime
 from pathlib import Path
@@ -178,23 +177,27 @@ async def _evaluate_proposal(proposal: dict) -> bool:
 
 
 async def _announce_surprise(proposal: dict, build_result: str):
-    """Post the surprise announcement to Discord."""
+    """Deposit build announcement into DM queue — bot drains it every 2 min."""
     try:
-        webhook_url = os.getenv("PHANTOM_SURPRISES_WEBHOOK", "")
+        from src.utils.dm_queue import enqueue_dm
 
-        if webhook_url:
-            from src.interfaces.webhook_sender import build_surprise_embed, send_webhook
-            embed = build_surprise_embed(
-                name=proposal.get("name", "Mystery Tool"),
-                description=proposal.get("description", ""),
-                why=proposal.get("why", ""),
-                path=proposal.get("name", "surprises/")
-            )
-            await send_webhook(webhook_url, embed)
-        else:
-            logger.info(f"Surprise built (no webhook): {proposal.get('name')}")
+        name        = proposal.get("name", "Mystery Tool")
+        description = proposal.get("description", "")
+        why         = proposal.get("why", "")
+        result_snippet = build_result[:300] if build_result else ""
+
+        msg = (
+            f"**Built while you slept: {name}**\n\n"
+            f"{description}\n\n"
+            f"**Why:** {why}"
+        )
+        if result_snippet:
+            msg += f"\n\n```\n{result_snippet}\n```"
+
+        enqueue_dm(msg, title=name, priority=1)
+        logger.info(f"Surprise announcement queued: {name}")
     except Exception as e:
-        logger.error(f"Failed to announce surprise: {e}")
+        logger.error(f"Failed to queue surprise announcement: {e}")
 
 
 async def _send_discord_message(text: str):

@@ -23,7 +23,7 @@ sys.path.insert(0, str(ROOT))
 from src.core.config import CONFIG, get_secret
 from src.core import memory as mem_module
 from src.core.scheduler import start as start_scheduler, stop as stop_scheduler
-from src.agents.heartbeat import send_heartbeat, set_bot as heartbeat_set_bot
+from src.agents.heartbeat import send_heartbeat, run_proactive_check, set_bot as heartbeat_set_bot
 from src.interfaces.discord_commands import parse_command, handle_general_chat
 from src.interfaces.discord_commands import (
     handle_status, handle_learn, handle_install_mcp,
@@ -348,9 +348,10 @@ async def send_to_channel(channel_name: str, text: str = None, embed: dict = Non
 
 async def _heartbeat_loop():
     """
-    Two-speed background loop:
-      - Writes alive state to disk every 2 minutes (keeps dashboard green)
-      - Sends DM to Theodore every 6 hours (per HEARTBEAT_INTERVAL_MINUTES)
+    Three-speed background loop (OpenClaw-inspired):
+      - Every 2 min  → write disk state (keeps dashboard green)
+      - Every 30 min → proactive think cycle (reads HEARTBEAT.md, acts or stays silent)
+      - Every 6 hrs  → status DM to Theodore
     """
     from src.agents.heartbeat import write_heartbeat_state
     from src.utils import lm_studio_client as lms
@@ -363,15 +364,21 @@ async def _heartbeat_loop():
     write_heartbeat_state(lm_online, lm_models)
 
     while not bot.is_closed():
-        # Always write state every 2 minutes so dashboard stays current
+        # 1. Always write state so dashboard stays current
         lm_online = await lms.is_available()
         lm_models = await lms.list_models() if lm_online else []
         write_heartbeat_state(lm_online, lm_models)
 
-        # Only DM Offline on the 6-hour interval
+        # 2. Proactive think cycle — reads HEARTBEAT.md, DMs only if needed
+        try:
+            await run_proactive_check(bot)
+        except Exception as e:
+            logger.warning(f"Proactive check failed: {e}")
+
+        # 3. 6-hour status DM
         await send_heartbeat(bot)
 
-        # ── Drain DM queue (cron scripts deposit messages here) ───────────────
+        # 4. Drain DM queue (cron scripts deposit messages here)
         try:
             from src.utils.dm_queue import drain_queue
             from src.agents.heartbeat import _dm_owner
@@ -379,10 +386,9 @@ async def _heartbeat_loop():
             for item in pending:
                 content = item.get("content", "")
                 if content:
-                    # Split into Discord-safe chunks
                     for chunk in _chunk_message(content):
                         await _dm_owner(bot, text=chunk)
-                    await asyncio.sleep(0.5)  # small delay between chunks
+                    await asyncio.sleep(0.5)
         except Exception as e:
             logger.warning(f"DM queue drain failed: {e}")
 

@@ -11,7 +11,6 @@ Every night at 11 PM:
 """
 
 import logging
-import os
 from datetime import datetime
 from pathlib import Path
 
@@ -137,6 +136,16 @@ async def _research_topic(topic: str, search_query: str, reason: str, context: s
         max_tokens=1500
     )
 
+    # Fallback to LM Studio if Groq failed
+    if report.startswith("[Groq error:"):
+        logger.warning(f"Groq failed for '{topic}', falling back to LM Studio")
+        from src.utils import lm_studio_client
+        report = await lm_studio_client.chat(
+            research_prompt,
+            system="You are a research analyst. Synthesize web search results into actionable reports.",
+            max_tokens=1500
+        )
+
     # Check for urgency flag
     if "URGENT: YES" in report or "URGENT:" in report[:50]:
         urgent = True
@@ -146,33 +155,32 @@ async def _research_topic(topic: str, search_query: str, reason: str, context: s
 
 
 async def _post_results_to_discord(results: list):
-    """Post research results to Discord channels."""
+    """Deposit research results into DM queue — bot drains it every 2 min."""
     try:
-        from src.interfaces.webhook_sender import build_research_embed
-
-        # Try to get bot client for channel posting
-        # Fall back to webhook if available
-        webhook_url = os.getenv("PHANTOM_RESEARCH_WEBHOOK", "")
+        from src.utils.dm_queue import enqueue_dm
 
         for result in results:
-            embed = build_research_embed(
-                topic=result["topic"],
-                summary=result["summary"],
-                sources=result.get("sources", []),
-                urgent=result.get("urgent", False)
-            )
+            urgent  = result.get("urgent", False)
+            topic   = result["topic"]
+            summary = result["summary"]
+            sources = result.get("sources", [])
+            path    = result.get("report_path", "")
 
-            if webhook_url:
-                from src.interfaces.webhook_sender import send_webhook
-                channel = "alerts" if result.get("urgent") else "research"
-                # Would need channel-specific webhooks — for now log it
-                logger.info(f"Would post to #{channel}: {result['topic']}")
-            else:
-                logger.info(f"Research complete (no webhook set): {result['topic']}")
-                logger.info(f"Summary: {result['summary'][:200]}")
+            # Build message
+            tag  = "URGENT — " if urgent else ""
+            msg  = f"**{tag}Research: {topic}**\n\n{summary}"
+            if sources:
+                src_lines = "\n".join(f"• {s}" for s in sources[:3])
+                msg += f"\n\n**Sources:**\n{src_lines}"
+            if path:
+                rel = Path(path).name
+                msg += f"\n\n*Full report: `memory/research/{rel}`*"
+
+            enqueue_dm(msg, title=topic, priority=2 if urgent else 0)
+            logger.info(f"Research queued for DM: {topic}")
 
     except Exception as e:
-        logger.error(f"Failed to post research to Discord: {e}")
+        logger.error(f"Failed to queue research results: {e}")
 
 
 def _parse_topics(json_str: str) -> list:
