@@ -758,11 +758,35 @@
               <div class="cron-time">11 PM</div>
               <div><div class="cron-name">🔬 Nightly Research</div><div class="cron-desc">Runs queued research topics from the day, writes to research-log.md</div></div>
             </div>
-            <div class="cron-row" style="border-bottom:none">
+            <div class="cron-row">
               <div class="cron-time">3 AM</div>
               <div><div class="cron-name">✨ Overnight Build</div><div class="cron-desc">Autonomously picks something from backlog or invents a new tool and builds it — shown in Surprises tab</div></div>
             </div>
+            <div class="cron-row" style="border-bottom:none">
+              <div class="cron-time">Every 30m</div>
+              <div><div class="cron-name">💓 Proactive Think</div><div class="cron-desc">Reads HEARTBEAT.md checklist — DMs you only if something needs attention, otherwise stays silent</div></div>
+            </div>
           </div>
+        </div>
+
+        <!-- Heartbeat System -->
+        <div class="guide-card" data-guide-card>
+          <div class="guide-card-header">
+            <span class="guide-card-icon">💓</span>
+            <div><div class="guide-card-title">Heartbeat System</div><div class="guide-card-desc">How Phantom thinks proactively without being asked</div></div>
+          </div>
+          <div style="font-size:13px;color:var(--text-dim);line-height:1.7;margin-bottom:14px">
+            Every 30 minutes, Phantom reads <code style="color:var(--cyan);background:rgba(0,255,204,0.07);padding:1px 5px;border-radius:4px">memory/HEARTBEAT.md</code> — a checklist of things to monitor. It asks LM Studio: <em>"is there anything worth telling Theodore right now?"</em>
+          </div>
+          <div style="margin-bottom:12px">
+            <div class="cmd-row"><div class="cmd-chip" style="color:var(--green)">HEARTBEAT_OK</div><div class="cmd-desc">Nothing matters → completely silent, no DM</div></div>
+            <div class="cmd-row"><div class="cmd-chip" style="color:var(--yellow)">Real signal</div><div class="cmd-desc">DMs you directly — queue backed up, high-priority backlog, pattern detected, etc.</div></div>
+          </div>
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">Monitors:</div>
+          <div style="font-size:12px;color:var(--text-dim);line-height:1.8">
+            📋 Research queue · 🔨 Backlog priorities · 🧠 Memory integrity · 🔁 Repeated patterns · ⚠️ Unresolved errors
+          </div>
+          <div class="guide-tip">💡 Edit <strong>memory/HEARTBEAT.md</strong> to change what Phantom watches for — it's plain Markdown.</div>
         </div>
 
         <!-- Models Table -->
